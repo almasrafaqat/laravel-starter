@@ -90,7 +90,7 @@ class SetupProject extends Command
 
         $this->info('🧹 Clearing config cache...');
         Artisan::call('config:clear');
-        Artisan::call('cache:clear');
+        // Artisan::call('cache:clear');
 
         $this->info('🎉 Setup finished!');
         return 0;
