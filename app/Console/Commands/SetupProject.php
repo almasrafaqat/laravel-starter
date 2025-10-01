@@ -4,8 +4,7 @@ namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\DB;
-use PDO;
+
 
 class SetupProject extends Command
 {
@@ -46,24 +45,24 @@ class SetupProject extends Command
         }
 
 
-        config(['database.connections.mysql.database' => $dbName]);
-        config(['database.connections.mysql.username' => $dbUser]);
-        config(['database.connections.mysql.password' => $dbPass]);
-        // DB::purge('mysql');
-        // DB::reconnect('mysql');
+        // config(['database.connections.mysql.database' => $dbName]);
+        // config(['database.connections.mysql.username' => $dbUser]);
+        // config(['database.connections.mysql.password' => $dbPass]);
+        // // DB::purge('mysql');
+        // // DB::reconnect('mysql');
 
-        // Try to create the database if it doesn't exist
-        try {
-            $this->info("🛢️  Checking if database '{$dbName}' exists...");
+        // // Try to create the database if it doesn't exist
+        // try {
+        //     $this->info("🛢️  Checking if database '{$dbName}' exists...");
 
-            $pdo = new PDO("mysql:host=127.0.0.1;port=3306", $dbUser, $dbPass ?: null);
-            $pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
+        //     $pdo = new PDO("mysql:host=127.0.0.1;port=3306", $dbUser, $dbPass ?: null);
+        //     $pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbName` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;");
 
-            $this->info("✅ Database '{$dbName}' is ready.");
-        } catch (\Exception $e) {
-            $this->error("❌ Could not create database: " . $e->getMessage());
-            return 1;
-        }
+        //     $this->info("✅ Database '{$dbName}' is ready.");
+        // } catch (\Exception $e) {
+        //     $this->error("❌ Could not create database: " . $e->getMessage());
+        //     return 1;
+        // }
 
 
 
@@ -73,20 +72,16 @@ class SetupProject extends Command
         Artisan::call('key:generate');
         $this->line(Artisan::output());
 
-
-        $this->info('🧹 Clearing config cache...');
-        Artisan::call('config:clear');
-
         // Run migrations
-        $this->info('📂 Running migrations...');
-        Artisan::call('migrate', ['--force' => true]);
-        $this->line(Artisan::output());
+        // $this->info('📂 Running migrations...');
+        // Artisan::call('migrate', ['--force' => true]);
+        // $this->line(Artisan::output());
 
 
 
-        $this->info('🌱 Running seeders...');
-        Artisan::call('db:seed', ['--force' => true]);
-        $this->line(Artisan::output());
+        // $this->info('🌱 Running seeders...');
+        // Artisan::call('db:seed', ['--force' => true]);
+        // $this->line(Artisan::output());
 
         // Storage link
         $this->info('🔗 Creating storage link...');
