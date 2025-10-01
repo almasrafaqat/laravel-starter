@@ -49,8 +49,8 @@ class SetupProject extends Command
         config(['database.connections.mysql.database' => $dbName]);
         config(['database.connections.mysql.username' => $dbUser]);
         config(['database.connections.mysql.password' => $dbPass]);
-        DB::purge('mysql');
-        DB::reconnect('mysql');
+        // DB::purge('mysql');
+        // DB::reconnect('mysql');
 
         // Try to create the database if it doesn't exist
         try {
@@ -73,10 +73,15 @@ class SetupProject extends Command
         Artisan::call('key:generate');
         $this->line(Artisan::output());
 
+
+        $this->info('🧹 Clearing config cache...');
+        Artisan::call('config:clear');
+
         // Run migrations
         $this->info('📂 Running migrations...');
         Artisan::call('migrate', ['--force' => true]);
         $this->line(Artisan::output());
+
 
 
         $this->info('🌱 Running seeders...');
