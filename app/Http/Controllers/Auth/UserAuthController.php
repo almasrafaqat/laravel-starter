@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
 use App\Jobs\SendPasswordResetJob;
 use Illuminate\Support\Facades\App;
 use App\Jobs\SendPasswordResetSuccessJob;
-use App\trait\ApiResponse;
+use App\Trait\ApiResponse;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Support\Facades\Auth;
