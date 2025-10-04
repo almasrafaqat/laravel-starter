@@ -3,6 +3,7 @@
 namespace App\Trait\Relations;
 
 use App\Models\Company;
+use App\Models\Invoice;
 use App\Models\SocialAccount;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -19,4 +20,13 @@ trait UserRelation
     {
         return $this->hasMany(SocialAccount::class);
     }
+
+
+
+    public function createdInvoices()
+    {
+        return $this->hasMany(Invoice::class, 'creator_id');
+    }
+
+    
 }

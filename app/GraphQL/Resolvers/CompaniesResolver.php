@@ -16,7 +16,7 @@ class CompaniesResolver
         // return $user->companies()->with('plans.metas')->get();
         // call service layer
         // return Company::all();
-        // return Company::with(['users', 'plans'])->get();
-        return CompanyService::getAllCompaniesWithRelations();
+        return Company::with(['users', 'plans'])->get();
+        // return CompanyService::getAllCompaniesWithRelations();
     }
 }

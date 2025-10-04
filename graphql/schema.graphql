@@ -29,6 +29,14 @@ type Query {
     "Get the authenticated user's company and its plans"
     myCompany: Company
         @field(resolver: "App\\GraphQL\\Queries\\CompanyQuery@myCompany")
+
+    myCompanies: [Company!]!
+        @field(resolver: "App\\GraphQL\\Queries\\CompanyQuery@myCompanies")
+
+    me: User @auth
+
+    invoice(id: ID!): Invoice @find
+    invoices(company_id: ID): [Invoice!]! @paginate(defaultCount: 10)
 }
 
 type Plan {
@@ -61,31 +69,6 @@ type PlanMeta {
     plan: Plan! @belongsTo
 }
 
-type Company {
-    id: ID!
-    name: String!
-    email: String
-    phone: String
-    address: String
-    country: String
-    language: String
-    currency: String
-    is_active: Boolean
-    is_default: Boolean
-    plans: [Plan!]! @belongsToMany
-    users: [User!]! @belongsToMany
-}
-
-type Query {
-    companies: [Company!]!
-        @field(resolver: "App\\GraphQL\\Resolvers\\CompaniesResolver@__invoke")
-}
-
-type Query {
-    companies: [Company!]!
-        @field(resolver: "App\\GraphQL\\Resolvers\\CompaniesResolver@__invoke")
-}
-
 "Account of a person who uses this application."
 type User {
     "Unique primary key."
@@ -111,18 +94,214 @@ type User {
     companies: [Company!]! @belongsToMany
 }
 
-type Query {
-    me: User @auth
+type Company {
+    id: ID!
+    name: String!
+    email: String
+    phone: String
+    address: String
+    country: String
+    language: String
+    currency: String
+    is_active: Boolean
+    is_default: Boolean
+    plans: [Plan!]! @belongsToMany
+    users: [User!]! @belongsToMany
+    metas: [CompanyMeta!]! @hasMany
+    invoices: [Invoice!]! @hasMany
+}
+
+type CompanyMeta {
+    id: ID!
+    company_id: ID!
+    meta_key: String!
+    meta_value: String
+    meta_data: JSON
+    is_active: Boolean
+    is_default: Boolean
+    meta_order: Int
+    meta_group: String
+    meta_type: String
+    company: Company! @belongsTo
+}
+
+type Invoice {
+    id: ID!
+    title: String
+    invoice_number: String
+    customer: Customer @belongsTo
+    company: Company @belongsTo
+    creator: User @belongsTo
+    items: [Item!]! @hasMany
+    discounts: [Discount!]! @morphMany
+    reminders: [Reminder!]! @morphMany
+    links: [Link!]! @morphMany
+    charities: [Charity!]! @hasMany
+    checklistables: [Checklistable!]! @morphMany
+    
+}
+
+type Customer {
+    id: ID!
+    name: String!
+    email: String
+    phone: String
+    address: String
+    country: String
+}
+type Item {
+    id: ID!
+    invoice_id: ID!
+    name: String!
+    description: String!
+    quantity: Int!
+    price: Float!
+    total: Float!
+    invoice: Invoice! @belongsTo
+}
+type Discount {
+    id: ID!
+    discountable_id: ID!
+    discountable_type: String!
+    discount_type: String!
+    discount: Float!
+}
+type Reminder {
+    id: ID!
+    remindable_id: ID!
+    remindable_type: String!
+    schedule_date: DateTime
+    timezone: String
+    message: String
+}
+type Link {
+    id: ID!
+    linkable_id: ID!
+    linkable_type: String!
+    link: String!
+    is_active: Boolean!
+    expires_at: DateTime
+    linkable: JSON
+}
+type Charity {
+    id: ID!
+    invoice_id: ID!
+    cause_name: String!
+    value: Float!
+    invoice: Invoice! @belongsTo
+}
+type Checklistable {
+    id: ID!
+    checklistable_id: ID!
+    checklistable_type: String!
+    title: String!
+    is_completed: Boolean!
+    checklist: Checklist @belongsTo
+}
+type Checklist {
+    id: ID!
+    title: String!
+    slug: String
+    description: String
+    category_id: ID
+    is_active: Boolean
+    order: Int
+    category: Category @belongsTo
 }
 
 type Mutation {
-    createCompany(
-        name: String!
-        email: String
-        phone: String
-        address: String
-        country: String
-        language: String
-        currency: String
-    ): Company @create
+    createInvoice(input: CreateInvoiceInput!): Invoice
+        @field(
+            resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@createInvoice"
+        )
 }
+
+input CreateInvoiceInput {
+    title: String!
+    customer_name: String
+    customer_email: String
+    discount_type: String
+    discount: Float
+    # invoice_number: String
+    # customer_id: ID
+    # company_id: ID
+    # creator_id: ID
+    # items: [InvoiceItemInput!]
+    # discounts: [InvoiceDiscountInput!]
+    # reminders: [InvoiceReminderInput!]
+    # links: [InvoiceLinkInput!]
+    # charities: [InvoiceCharityInput!]
+    # checklistables: [InvoiceChecklistableInput!]
+}
+
+input InvoiceItemInput {
+    name: String!
+    description: String!
+    quantity: Int!
+    price: Float!
+}
+
+input InvoiceDiscountInput {
+    discount_type: String!
+    discount: Float!
+}
+
+input InvoiceReminderInput {
+    schedule_date: DateTime
+    timezone: String
+    message: String
+}
+
+input InvoiceLinkInput {
+    link: String!
+    is_active: Boolean!
+    expires_at: DateTime
+}
+
+input InvoiceCharityInput {
+    cause_name: String!
+    value: Float!
+}
+
+input InvoiceChecklistableInput {
+    checklist_id: ID!
+    title: String!
+    is_completed: Boolean!
+}
+
+# type Mutation {
+#     createCompany(
+#         name: String!
+#         email: String
+#         phone: String
+#         address: String
+#         country: String
+#         language: String
+#         currency: String
+#     ): Company @create
+
+#   createInvoice(
+#     customer_id: ID!
+#     company_id: ID!
+#     items: [InvoiceItemInput!]!
+#     discounts: [InvoiceDiscountInput!]
+#     due_date: DateTime
+#     template_id: ID
+#   ): Invoice @create
+
+#   sendInvoice(id: ID!): Invoice @field(resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@sendInvoice")
+#   remindInvoice(id: ID!): InvoiceReminder @field(resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@remindInvoice")
+#   downloadInvoice(id: ID!): String @field(resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@downloadInvoice")
+#   // ...other mutations
+# }
+
+# input InvoiceItemInput {
+#   description: String!
+#   quantity: Int!
+#   price: Float!
+# }
+
+# input InvoiceDiscountInput {
+#   type: String!
+#   value: Float!
+# }

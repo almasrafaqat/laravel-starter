@@ -37,4 +37,7 @@ class Company extends Model
         'is_active' => 'boolean',
         'is_default' => 'boolean',
     ];
+
+
+  
 }

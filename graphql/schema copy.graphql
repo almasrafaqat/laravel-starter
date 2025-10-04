@@ -1,0 +1,125 @@
+"A datetime string with format `Y-m-d H:i:s`, e.g. `2018-05-23 13:43:32`."
+scalar DateTime
+    @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\DateTime")
+
+"Indicates what fields are available at the top level of a query operation."
+type Query {
+    "Find a single user by an identifying attribute."
+    user(
+        "Search by primary key."
+        id: ID @eq @rules(apply: ["prohibits:email", "required_without:email"])
+
+        "Search by email address."
+        email: String
+            @eq
+            @rules(apply: ["prohibits:id", "required_without:id", "email"])
+    ): User @find
+
+    "List multiple users."
+    users(
+        "Filters by name. Accepts SQL LIKE wildcards `%` and `_`."
+        name: String @where(operator: "like")
+    ): [User!]! @paginate(defaultCount: 10)
+
+    plans: [Plan!]! @all
+    plan(id: ID!): Plan @find
+    companies: [Company!]! @all
+    company(id: ID!): Company @find
+
+    "Get the authenticated user's company and its plans"
+    myCompany: Company
+        @field(resolver: "App\\GraphQL\\Queries\\CompanyQuery@myCompany")
+}
+
+type Plan {
+    id: ID!
+    name: String!
+    description: String
+    price: Float
+    billing_cycle: String
+    is_active: Boolean
+    is_default: Boolean
+    max_users: Int
+    max_projects: Int
+    features: String
+    currency: String
+    duration_days: Int
+    metas: [PlanMeta!]! @hasMany
+}
+
+type PlanMeta {
+    id: ID!
+    plan_id: ID!
+    meta_key: String!
+    meta_value: String
+    meta_data: JSON
+    is_active: Boolean
+    is_default: Boolean
+    meta_order: Int
+    meta_group: String
+    meta_type: String
+    plan: Plan! @belongsTo
+}
+
+type Company {
+    id: ID!
+    name: String!
+    email: String
+    phone: String
+    address: String
+    country: String
+    language: String
+    currency: String
+    is_active: Boolean
+    is_default: Boolean
+    plans: [Plan!]! @belongsToMany
+    users: [User!]! @belongsToMany
+}
+
+type Query {
+    companies: [Company!]!
+        @field(resolver: "App\\GraphQL\\Resolvers\\CompaniesResolver@__invoke")
+}
+
+
+
+"Account of a person who uses this application."
+type User {
+    "Unique primary key."
+    id: ID!
+
+    "Non-unique name."
+    name: String!
+
+    language: String
+
+    "Unique email address."
+    email: String!
+
+    "When the email was verified."
+    email_verified_at: DateTime
+
+    "When the account was created."
+    created_at: DateTime!
+
+    "When the account was last updated."
+    updated_at: DateTime!
+
+    companies: [Company!]! @belongsToMany
+}
+
+type Query {
+    me: User @auth
+}
+
+type Mutation {
+    createCompany(
+        name: String!
+        email: String
+        phone: String
+        address: String
+        country: String
+        language: String
+        currency: String
+    ): Company @create
+}

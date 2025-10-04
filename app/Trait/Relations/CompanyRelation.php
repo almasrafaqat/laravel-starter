@@ -3,6 +3,7 @@
 namespace App\Trait\Relations;
 
 use App\Models\CompanyMeta;
+use App\Models\Invoice;
 use App\Models\Plan;
 use App\Models\User;
 
@@ -40,5 +41,12 @@ trait CompanyRelation
             ->wherePivot('starts_at', '<=', now())
             ->wherePivot('ends_at', '>=', now())
             ->first();
+    }
+
+
+
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class);
     }
 }
