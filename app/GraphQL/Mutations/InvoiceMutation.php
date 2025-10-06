@@ -21,16 +21,22 @@ class InvoiceMutation
             'creator_id' => $user->id,
             // ...other fields
         ]);
-        return $invoice;
+       
         // Create items
-        // foreach ($args['items'] ?? [] as $itemData) {
-        //     $invoice->items()->create($itemData);
-        // }
+        foreach ($input['items'] ?? [] as $itemData) {
+            $invoice->items()->create($itemData);
+        }
+
+         return $invoice;
 
         // // Create discounts
-        // foreach ($args['discounts'] ?? [] as $discountData) {
-        //     $invoice->discounts()->create($discountData);
-        // }
+        foreach ($input['discounts'] ?? [] as $discountData) {
+            $invoice->discounts()->create($discountData);
+        }
+
+        foreach ($input['customers'] ?? [] as $customerData) {
+            $invoice->customer()->create($customerData);
+        }
 
         // // Create reminders
         // foreach ($args['reminders'] ?? [] as $reminderData) {

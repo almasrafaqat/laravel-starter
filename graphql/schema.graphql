@@ -147,7 +147,6 @@ type Customer {
     email: String
     phone: String
     address: String
-    country: String
 }
 type Item {
     id: ID!
@@ -218,56 +217,66 @@ type Mutation {
 
 input CreateInvoiceInput {
     title: String!
+    invoice_number: String
+    currency: String
+    paid: Boolean
+    amount_paid: Float
+    balance_due: Float
+    total: Float
+    discount_type: String
+    discount_value: Float
+    discount_name: String
+    discount_amount: Float
+    tax_type: String
+    tax_value: Float
     customer_name: String
     customer_email: String
-    discount_type: String
-    discount: Float
-    # invoice_number: String
-    # customer_id: ID
-    # company_id: ID
-    # creator_id: ID
-    # items: [InvoiceItemInput!]
-    # discounts: [InvoiceDiscountInput!]
-    # reminders: [InvoiceReminderInput!]
-    # links: [InvoiceLinkInput!]
-    # charities: [InvoiceCharityInput!]
-    # checklistables: [InvoiceChecklistableInput!]
+    customers: [CustomerInput!]
+    items: [InvoiceItemInput!]
+    discounts: [InvoiceDiscountInput!]
+    reminders: [InvoiceReminderInput!]
+    # Add other fields as needed
+}
+
+
+
+input CustomerInput {
+    credit_balance: Float
+    name: String!
+    email: String
+    company: String
+    phone: String
+    address: String
+    cc: String
+    bcc: String
 }
 
 input InvoiceItemInput {
     name: String!
-    description: String!
+    title: String!
+    description: String
     quantity: Int!
     price: Float!
+    excludeFromInvoiceDiscount: Boolean
+    itemHasDiscount: Boolean
+    itemDiscountType: String
+    itemDiscountValue: Float
 }
 
 input InvoiceDiscountInput {
     discount_type: String!
     discount: Float!
+    discount_name: String
+    discount_amount: Float
 }
 
 input InvoiceReminderInput {
     schedule_date: DateTime
     timezone: String
+    expiry_date: DateTime
     message: String
 }
 
-input InvoiceLinkInput {
-    link: String!
-    is_active: Boolean!
-    expires_at: DateTime
-}
-
-input InvoiceCharityInput {
-    cause_name: String!
-    value: Float!
-}
-
-input InvoiceChecklistableInput {
-    checklist_id: ID!
-    title: String!
-    is_completed: Boolean!
-}
 
 # type Mutation {
 #     createCompany(
