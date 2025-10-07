@@ -73,7 +73,7 @@ class InvoiceSeeder extends Seeder
         // Create Discount (polymorphic)
         $discount = Discount::create([
             'discount_type' => 'percentage',
-            'discount' => 10,
+            'discount_value' => 10,
             'discount_amount' => 110
         ]);
         $invoice->discounts()->save($discount);
@@ -178,7 +178,7 @@ class InvoiceSeeder extends Seeder
 
         $discount2 = Discount::create([
             'discount_type' => 'fixed',
-            'discount' => 100,
+            'discount_value' => 100,
             'discount_amount' => 100
         ]);
         $invoice2->discounts()->save($discount2);
@@ -256,7 +256,7 @@ class InvoiceSeeder extends Seeder
 
         $discount3 = Discount::create([
             'discount_type' => 'percentage',
-            'discount' => 5,
+            'discount_value' => 5,
             'discount_amount' => 78.75
         ]);
         $invoice3->discounts()->save($discount3);

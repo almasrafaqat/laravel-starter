@@ -16,9 +16,14 @@ return new class extends Migration
             $table->nullableMorphs('discountable');
             $table->index(['discountable_id', 'discountable_type']);
             $table->enum('discount_type', ['fixed', 'percentage'])->nullable();
-            $table->decimal('discount', 10, 2)->nullable();
+            $table->string('discount_name')->nullable();
+            $table->decimal('discount_value', 10, 2)->nullable();
             $table->decimal('discount_amount', 10, 2)->nullable();
             $table->timestamps();
+
+            // Add additional indexes if needed:
+            $table->index('discount_type');
+            $table->index('discount_name');
         });
     }
 

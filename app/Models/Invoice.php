@@ -32,6 +32,9 @@ class Invoice extends Model
     public function discounts() {
         return $this->morphMany(Discount::class, 'discountable');
     }
+    public function taxes() {
+        return $this->morphMany(Tax::class, 'taxable');
+    }
 
     public function reminders() {
         return $this->morphMany(Reminder::class, 'remindable');

@@ -16,6 +16,11 @@ return new class extends Migration
             $table->nullableMorphs('remindable');
             $table->index(['remindable_id', 'remindable_type']);
             $table->dateTime('schedule_date')->nullable();
+            $table->dateTime('expiry_date')->nullable();
+            $table->string('recurrence')->nullable();
+            $table->string('status')->default('pending');
+            $table->boolean('is_sent')->default(false);
+            $table->string('method')->nullable();
             $table->string('timezone')->nullable();
             $table->text('message')->nullable();
             $table->timestamps();

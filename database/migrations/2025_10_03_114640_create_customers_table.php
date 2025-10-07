@@ -24,6 +24,19 @@ return new class extends Migration
             $table->decimal('credit_balance', 10, 2)->default(0);
             $table->string('payment_method')->nullable();
             $table->string('status')->default('active');
+            
+            $table->unsignedBigInteger('company_id')->nullable()->index();
+            $table->foreign('company_id')
+                ->references('id')
+                ->on('companies')
+                ->onDelete('set null');
+            $table->unsignedBigInteger('creator_id')
+                ->nullable()
+                ->index();
+            $table->foreign('creator_id')
+                ->references('id')
+                ->on('users')
+                ->onDelete('set null');
             $table->string('contact_method')->default('email')->comment('Preferred contact method');
             $table->timestamps();
         });

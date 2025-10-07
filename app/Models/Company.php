@@ -38,6 +38,8 @@ class Company extends Model
         'is_default' => 'boolean',
     ];
 
-
-  
+    public function customers()
+    {
+        return $this->belongsToMany(Customer::class, 'company_customer');
+    }
 }

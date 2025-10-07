@@ -138,7 +138,6 @@ type Invoice {
     links: [Link!]! @morphMany
     charities: [Charity!]! @hasMany
     checklistables: [Checklistable!]! @morphMany
-    
 }
 
 type Customer {
@@ -163,7 +162,7 @@ type Discount {
     discountable_id: ID!
     discountable_type: String!
     discount_type: String!
-    discount: Float!
+    discount_value: Float!
 }
 type Reminder {
     id: ID!
@@ -219,26 +218,31 @@ input CreateInvoiceInput {
     title: String!
     invoice_number: String
     currency: String
-    paid: Boolean
+    status: String
+    payment_status: String
     amount_paid: Float
     balance_due: Float
     total: Float
-    discount_type: String
-    discount_value: Float
-    discount_name: String
-    discount_amount: Float
-    tax_type: String
-    tax_value: Float
-    customer_name: String
-    customer_email: String
+    date: DateTime
+    timeframe: DateTime
+    importance: String
+    notes: String
+    template_id: ID
+    valid_until: DateTime
+    paid_on: DateTime
+    payment_method: String
+    reference: String
+    description: String
+    currency_rate: Float
+    total_pkr: Float
+    company_id: ID
     customers: [CustomerInput!]
     items: [InvoiceItemInput!]
+    taxes: [InvoiceTaxInput!]
     discounts: [InvoiceDiscountInput!]
     reminders: [InvoiceReminderInput!]
     # Add other fields as needed
 }
-
-
 
 input CustomerInput {
     credit_balance: Float
@@ -262,10 +266,16 @@ input InvoiceItemInput {
     itemDiscountType: String
     itemDiscountValue: Float
 }
+input InvoiceTaxInput {
+    tax_type: String!
+    tax_value: Float!
+    tax_name: String
+    tax_amount: Float
+}
 
 input InvoiceDiscountInput {
     discount_type: String!
-    discount: Float!
+    discount_value: Float!
     discount_name: String
     discount_amount: Float
 }
@@ -276,7 +286,6 @@ input InvoiceReminderInput {
     expiry_date: DateTime
     message: String
 }
-
 
 # type Mutation {
 #     createCompany(
