@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\UserAuthController;
 use Illuminate\Support\Facades\Route;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 Route::get('/', function () {
     return view('welcome');
@@ -24,7 +25,10 @@ Route::middleware([
 
 
 
-
+Route::get('/test-pdf', function () {
+    $pdf = Pdf::loadView('pdf.test', ['name' => 'Test User']);
+    return $pdf->download('test.pdf');
+});
 
 
 

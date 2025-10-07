@@ -5,7 +5,7 @@ namespace App\Models;
 use App\Trait\Relations\CompanyRelation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
-
+use App\Models\SmtpSetting;
 class Company extends Model
 {
     use CompanyRelation, SoftDeletes;
@@ -41,5 +41,10 @@ class Company extends Model
     public function customers()
     {
         return $this->belongsToMany(Customer::class, 'company_customer');
+    }
+
+    public function mailSettings()
+    {
+        return $this->belongsToMany(MailSetting::class, 'company_mail_setting');
     }
 }
