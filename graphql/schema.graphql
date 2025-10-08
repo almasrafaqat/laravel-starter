@@ -151,10 +151,15 @@ type Item {
     id: ID!
     invoice_id: ID!
     name: String!
-    description: String!
+    description: String
     quantity: Int!
     price: Float!
     total: Float!
+    subtotal: Float
+    is_discounted: Boolean!
+    is_excluded_invoice_discount: Boolean!
+    is_taxed: Boolean!
+    is_excluded_invoice_taxed: Boolean!
     invoice: Invoice! @belongsTo
 }
 type Discount {
@@ -257,14 +262,18 @@ input CustomerInput {
 
 input InvoiceItemInput {
     name: String!
-    title: String!
     description: String
     quantity: Int!
     price: Float!
-    excludeFromInvoiceDiscount: Boolean
-    itemHasDiscount: Boolean
-    itemDiscountType: String
-    itemDiscountValue: Float
+    subtotal: Float
+    total: Float
+    is_discounted: Boolean
+    is_excluded_invoice_discount: Boolean
+    is_taxed: Boolean
+    is_excluded_invoice_taxed: Boolean
+    discount_type: String
+    discount_value: Float
+    discount_amount: Float
 }
 input InvoiceTaxInput {
     tax_type: String!

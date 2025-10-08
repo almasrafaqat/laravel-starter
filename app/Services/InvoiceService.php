@@ -2,6 +2,12 @@
 
 namespace App\Services;
 
+use App\Models\Customer;
+use App\Models\Invoice;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
+use Illuminate\Support\Facades\Auth;
+
 class InvoiceService
 {
     public static function paymentStatus()
@@ -16,5 +22,581 @@ class InvoiceService
         ];
     }
 
-    public function saveQuotation($data) {}
+
+
+    private static function handleCustomers($invoice, $input, $user, $mainFields)
+    {
+        foreach ($input['customers'] ?? [] as $customerData) {
+            $customerId = $customerData['id'] ?? $customerData['customer_id'] ?? null;
+            if ($customerId) {
+                $customer = Customer::find($customerId);
+            } else {
+                $customerData['creator_id'] = $user->id;
+                $customerData['company_id'] = $mainFields['company_id'] ?? null;
+                $customer = Customer::create($customerData);
+            }
+            if (!$invoice->customer_id) {
+                $invoice->customer_id = $customer->id;
+                $invoice->save();
+            }
+            if (!empty($input['company_id'])) {
+                $customer->companies()->syncWithoutDetaching([$input['company_id']]);
+            }
+        }
+    }
+
+    private static function handleDiscounts($invoice, $discounts, $deleteOld = false)
+    {
+        if ($deleteOld) {
+            $invoice->discounts()->delete();
+        }
+        foreach ($discounts ?? [] as $discountData) {
+            if (
+                empty($discountData['discount_type']) ||
+                $discountData['discount_type'] === 'none'
+            ) {
+                continue;
+            }
+            $invoice->discounts()->create($discountData);
+        }
+    }
+
+    private static function handleTaxes($invoice, $taxes, $deleteOld = false)
+    {
+        if ($deleteOld) {
+            $invoice->taxes()->delete();
+        }
+        foreach ($taxes ?? [] as $taxData) {
+            if (
+                empty($taxData['tax_type']) ||
+                $taxData['tax_type'] === 'none'
+            ) {
+                continue;
+            }
+            $invoice->taxes()->create($taxData);
+        }
+    }
+
+    private static function handleItems($invoice, $items, $deleteOld = false)
+    {
+        if ($deleteOld) {
+            $invoice->items()->delete();
+        }
+        foreach ($items ?? [] as $itemData) {
+            // Extract discount data from item if present
+            $discountData = null;
+            if (
+                !empty($itemData['discount_type']) &&
+                $itemData['discount_type'] !== 'none'
+            ) {
+                $discountData = [
+                    'discount_type' => $itemData['discount_type'],
+                    'discount_value' => $itemData['discount_value'],
+                    'discount_amount' => $itemData['discount_amount'] ?? 0,
+                    'discount_name' => $itemData['discount_name'] ?? '',
+                    // Add other discount fields if needed
+                ];
+            }
+
+            // Remove discount fields from itemData before creating item
+            $itemFields = collect($itemData)->except([
+                'discount_type',
+                'discount_value',
+                'discount_amount',
+                'discount_name'
+            ])->toArray();
+
+            $item = $invoice->items()->create($itemFields);
+
+            // If discount data exists, create discount for this item
+            if ($discountData) {
+                // You may need to associate the discount with the item, not the invoice
+                // If you have item-discounts relation:
+                $item->discounts()->create($discountData);
+                // If not, fallback to invoice-level:
+                // self::handleDiscounts($invoice, [$discountData]);
+            }
+        }
+    }
+
+    private static function handleReminders($invoice, $reminders, $deleteOld = false)
+    {
+        if ($deleteOld) {
+            $invoice->reminders()->delete();
+        }
+        foreach ($reminders ?? [] as $reminderData) {
+            $invoice->reminders()->create($reminderData);
+        }
+    }
+
+    public static function createInvoice(array $input)
+    {
+        $input['date'] = isset($input['date']) ? Carbon::parse($input['date'])->format('Y-m-d') : null;
+        $input['valid_until'] = isset($input['valid_until']) ? Carbon::parse($input['valid_until'])->format('Y-m-d H:i:s') : null;
+        $input['paid_on'] = isset($input['paid_on']) ? Carbon::parse($input['paid_on'])->format('Y-m-d H:i:s') : null;
+        $input['timeframe'] = isset($input['timeframe']) ? Carbon::parse($input['timeframe'])->format('Y-m-d H:i:s') : null;
+        $user = Auth::user();
+        // Remove arrays before saving
+        $mainFields = collect($input)->except([
+            'customers',
+            'items',
+            'taxes',
+            'discounts',
+            'reminders'
+        ])->toArray();
+
+        // Add required fields not in input
+        $mainFields['creator_id'] = $user->id;
+        $mainFields['company_id'] = $input['company_id'] ?? null;
+        $invoice = Invoice::create($mainFields);
+
+        self::handleItems($invoice, $input['items']);
+        self::handleDiscounts($invoice, $input['discounts']);
+        self::handleCustomers($invoice, $input, $user, $mainFields);
+        self::handleReminders($invoice, $input['reminders']);
+        self::handleTaxes($invoice, $input['taxes']);
+
+        return $invoice;
+    }
+
+    /**
+     * Convert invoice items to array format
+     */
+
+    public function formatInvoiceItems($invoiceData)
+    {
+        if ($invoiceData instanceof \Illuminate\Database\Eloquent\Model) {
+            if (!$invoiceData->relationLoaded('items')) {
+                $invoiceData->load('items');
+            }
+
+            $invoiceData['items'] = $invoiceData->items->map(function ($item) {
+                return [
+                    'id' => $item->id,
+                    'name' => $item->name,
+                    'description' => $item->description,
+                    'quantity' => (float)$item->quantity,
+                    'price' => (float)$item->price,
+                    'subtotal' => (float)$item->subtotal,
+                    'is_discounted' => (bool)$item->is_discounted,
+                    'is_excluded_invoice_discount' => (bool)$item->is_excluded_invoice_discount,
+                    'is_taxed' => (bool)$item->is_taxed,
+                    'is_excluded_invoice_taxed' => (bool)$item->is_excluded_invoice_taxed,
+                    'total' => (float)$item->total,
+                    'discounts' => $item->discounts->map(function ($discount) {
+                        return [
+                            'id' => $discount->id,
+                            'discount_type' => $discount->discount_type,
+                            'discount_value' => (float)$discount->discount_value,
+                            'discount_amount' => (float)$discount->discount_amount,
+                            'discount_name' => $discount->discount_name,
+                        ];
+                    })->toArray(),
+                ];
+            })->toArray();
+        }
+
+        $invoiceData['items'] = $invoiceData['items'] ?? [];
+
+        return $invoiceData;
+    }
+
+    public function formatInvoiceDiscounts($invoiceData)
+    {
+        if ($invoiceData instanceof \Illuminate\Database\Eloquent\Model) {
+            if (!$invoiceData->relationLoaded('discounts')) {
+                $invoiceData->load('discounts');
+            }
+
+            $invoiceData['discounts'] = $invoiceData->discounts->map(function ($discount) {
+                return [
+                    'id' => $discount->id,
+                    'discount_type' => $discount->discount_type,
+                    'discount_value' => (float)$discount->discount_value,
+                    'discount_amount' => (float)$discount->discount_amount,
+                    'discount_name' => $discount->discount_name,
+                ];
+            })->toArray();
+        }
+
+        $invoiceData['discounts'] = $invoiceData['discounts'] ?? [];
+
+        return $invoiceData;
+    }
+
+    public function formatInvoiceTaxes($invoiceData)
+    {
+        if ($invoiceData instanceof \Illuminate\Database\Eloquent\Model) {
+            if (!$invoiceData->relationLoaded('taxes')) {
+                $invoiceData->load('taxes');
+            }
+
+            $invoiceData['taxes'] = $invoiceData->taxes->map(function ($tax) {
+                return [
+                    'id' => $tax->id,
+                    'tax_type' => $tax->tax_type,
+                    'tax_value' => (float)$tax->tax_value,
+                    'tax_amount' => (float)$tax->tax_amount,
+                    'tax_name' => $tax->tax_name,
+                ];
+            })->toArray();
+        }
+
+        $invoiceData['taxes'] = $invoiceData['taxes'] ?? [];
+
+        return $invoiceData;
+    }
+
+    public function formatInvoiceReminders($invoiceData)
+    {
+        if ($invoiceData instanceof \Illuminate\Database\Eloquent\Model) {
+            if (!$invoiceData->relationLoaded('reminders')) {
+                $invoiceData->load('reminders');
+            }
+
+            $invoiceData['reminders'] = $invoiceData->reminders->map(function ($reminder) {
+                return [
+                    'id' => $reminder->id,
+                    'days_before' => (int)$reminder->days_before,
+                    'subject' => $reminder->subject,
+                    'body' => $reminder->body,
+                    'is_sent' => (bool)$reminder->is_sent,
+                ];
+            })->toArray();
+        }
+
+        $invoiceData['reminders'] = $invoiceData['reminders'] ?? [];
+
+        return $invoiceData;
+    }
+
+    public function formatInvoiceCustomer($invoiceData)
+    {
+        if ($invoiceData instanceof \Illuminate\Database\Eloquent\Model) {
+            if (!$invoiceData->relationLoaded('customer')) {
+                $invoiceData->load('customer');
+            }
+            $invoiceData['customer'] = $invoiceData->customer ? [
+                'id' => $invoiceData->customer->id,
+                'name' => $invoiceData->customer->name,
+                'company' => $invoiceData->customer->company,
+                'email' => $invoiceData->customer->email,
+                'phone' => $invoiceData->customer->phone,
+                'address' => $invoiceData->customer->address,
+                'credit_balance' => $invoiceData->customer->credit_balance,
+            ] : null;
+        }
+        $invoiceData['customer'] = $invoiceData['customer'] ?? [];
+
+        return $invoiceData;
+    }
+
+    public function formatInvoiceCreator($invoiceData)
+    {
+        if ($invoiceData instanceof \Illuminate\Database\Eloquent\Model) {
+            if (!$invoiceData->relationLoaded('creator')) {
+                $invoiceData->load('creator');
+            }
+            $invoiceData['creator'] = $invoiceData->creator ? [
+                'id' => $invoiceData->creator->id,
+                'name' => $invoiceData->creator->name,
+                'email' => $invoiceData->creator->email,
+            ] : null;
+        }
+        $invoiceData['creator'] = $invoiceData['creator'] ?? [];
+        return $invoiceData;
+    }
+
+    public function formatCompany($invoiceData)
+    {
+        if ($invoiceData instanceof \Illuminate\Database\Eloquent\Model) {
+            if (!$invoiceData->relationLoaded('company')) {
+                $invoiceData->load('company');
+            }
+            $invoiceData['company'] = $invoiceData->company ? [
+                'id' => $invoiceData->company->id,
+                'name' => $invoiceData->company->name,
+                'email' => $invoiceData->company->email,
+                'phone' => $invoiceData->company->phone,
+                'address' => $invoiceData->company->address,
+                'website' => $invoiceData->company->website,
+                'logo' => $invoiceData->company->logo,
+                'tax_number' => $invoiceData->company->tax_number,
+                'registration_number' => $invoiceData->company->registration_number,
+                'country' => $invoiceData->company->country,
+                'state' => $invoiceData->company->state,
+                'city' => $invoiceData->company->city,
+                'zip_code' => $invoiceData->company->zip_code,
+                'description' => $invoiceData->company->description,
+                'language' => $invoiceData->company->language,
+                'currency' => $invoiceData->company->currency,
+            ] : null;
+        }
+        $invoiceData['company'] = $invoiceData['company'] ?? [];
+        return $invoiceData;
+    }
+
+    public function formatInvoice($invoiceData)
+    {
+        if ($invoiceData instanceof \Illuminate\Database\Eloquent\Model) {
+            $invoiceData = $this->formatInvoiceItems($invoiceData);
+            $invoiceData = $this->formatInvoiceDiscounts($invoiceData);
+            $invoiceData = $this->formatInvoiceTaxes($invoiceData);
+            $invoiceData = $this->formatInvoiceReminders($invoiceData);
+            $invoiceData = $this->formatInvoiceCustomer($invoiceData);
+            $invoiceData = $this->formatInvoiceCreator($invoiceData);
+            $invoiceData = $this->formatCompany($invoiceData);
+            $totalQuantity = array_sum(array_column($invoiceData['items'], 'quantity'));
+            $invoiceData['total_quantity'] = $totalQuantity;
+        }
+        return $invoiceData;
+    }
+
+    public function downloadInvoice($invoiceData)
+    {
+        $viewData = [
+            'invoice' => $invoiceData,
+            'bankDetails' => $this->getBankDetail(),
+            'isPdf' => true,
+        ];
+
+        $html = view('pdfs.invoice', $viewData)->render();
+        $pdf = Pdf::loadHTML($html);
+        $pdf->setPaper('A4', 'portrait');
+        $pdf->setOptions([
+            'defaultFont' => 'Almarai',
+            'isPhpEnabled' => true,
+            'isHtml5ParserEnabled' => true,
+            'isFontSubsettingEnabled' => true,
+            'isRemoteEnabled' => true,
+            'chroot' => public_path(),
+            'fontDir' => public_path('fonts'),
+            'fontCache' => storage_path('app/dompdf/fonts'),
+            'tempDir' => storage_path('app/dompdf/temp'),
+            'logOutputFile' => storage_path('logs/dompdf.htm'),
+        ]);
+        $filename = 'invoice_' . ($invoiceData['invoice_number'] ?? $invoiceData['id']) . '.pdf';
+
+        return $pdf->download($filename);
+    }
+
+    /**
+     * Get bank details for display in quotations
+     *
+     * @return array
+     */
+    public function getBankDetail()
+    {
+        return [
+            'bank_name' => config('app.bank_name'),
+            'account_name' => config('app.account_name'),
+            'account_number' => config('app.account_number'),
+            'iban' => config('app.iban'),
+            'swift_code' => config('app.swift_code'),
+        ];
+    }
+
+    // public static function updateInvoice(int $invoiceId, array $input)
+    // {
+    //     // ...existing code...
+    //     $invoice->update($mainFields);
+
+    //     self::handleItems($invoice, $input['items'], true);
+    //     self::handleDiscounts($invoice, $input['discounts'], true);
+    //     self::handleCustomers($invoice, $input, $user, $mainFields);
+    //     self::handleReminders($invoice, $input['reminders'], true);
+    //     self::handleTaxes($invoice, $input['taxes'], true);
+
+    //     return $invoice;
+    // }
+
+
+
+    // public static function createInvoice(array $input)
+    // {
+
+    //     $input['date'] = isset($input['date']) ? Carbon::parse($input['date'])->format('Y-m-d') : null;
+    //     $input['valid_until'] = isset($input['valid_until']) ? Carbon::parse($input['valid_until'])->format('Y-m-d H:i:s') : null;
+    //     $input['paid_on'] = isset($input['paid_on']) ? Carbon::parse($input['paid_on'])->format('Y-m-d H:i:s') : null;
+    //     $input['timeframe'] = isset($input['timeframe']) ? Carbon::parse($input['timeframe'])->format('Y-m-d H:i:s') : null;
+    //     $user = Auth::user();
+    //     // Remove arrays before saving
+    //     $mainFields = collect($input)->except([
+    //         'customers',
+    //         'items',
+    //         'taxes',
+    //         'discounts',
+    //         'reminders'
+    //     ])->toArray();
+
+    //     // Add required fields not in input
+    //     $mainFields['creator_id'] = $user->id;
+    //     $mainFields['company_id'] = $input['company_id'] ?? null;
+
+    //     $invoice = Invoice::create($mainFields);
+
+
+    //     // Create items
+    //     foreach ($input['items'] ?? [] as $itemData) {
+    //         $invoice->items()->create($itemData);
+    //     }
+
+    //     // // Create discounts
+    //     foreach ($input['discounts'] ?? [] as $discountData) {
+    //         if (
+    //             empty($discountData['discount_type']) ||
+    //             $discountData['discount_type'] === 'none'
+    //         ) {
+    //             continue; // Skip this discount
+    //         }
+    //         $invoice->discounts()->create($discountData);
+    //     }
+
+
+    //     // Create Customers and associate them with the invoice
+    //     foreach ($input['customers'] ?? [] as $customerData) {
+    //         // If customerData has 'id' or 'customer_id', use existing customer
+    //         $customerId = $customerData['id'] ?? $customerData['customer_id'] ?? null;
+    //         if ($customerId) {
+    //             $customer = Customer::find($customerId);
+    //             // Optionally update customer info if needed
+    //         } else {
+    //             // Create new customer
+    //             $customerData['creator_id'] = $user->id;
+    //             $customerData['company_id'] = $mainFields['company_id'] ?? null;
+    //             $customer = Customer::create($customerData);
+    //         }
+
+
+    //         // Optionally set the first customer as the invoice's main customer
+    //         if (!$invoice->customer_id) {
+    //             $invoice->customer_id = $customer->id;
+    //             $invoice->save();
+    //         }
+
+    //         // Attach customer to company (many-to-many)
+    //         if (!empty($input['company_id'])) {
+    //             $customer->companies()->attach($input['company_id']);
+    //         }
+    //     }
+
+
+    //     // Create reminders
+    //     foreach ($input['reminders'] ?? [] as $reminderData) {
+    //         $invoice->reminders()->create($reminderData);
+    //     }
+
+
+    //     foreach ($input['taxes'] ?? [] as $taxData) {
+    //         if (
+    //             empty($taxData['tax_type']) ||
+    //             $taxData['tax_type'] === 'none'
+    //         ) {
+    //             continue; // Skip this tax
+    //         }
+    //         $invoice->taxes()->create($taxData);
+    //     }
+
+    //     return $invoice;
+
+    //     // // Create links
+    //     // foreach ($args['links'] ?? [] as $linkData) {
+    //     //     $invoice->links()->create($linkData);
+    //     // }
+
+    //     // // Create charities
+    //     // foreach ($args['charities'] ?? [] as $charityData) {
+    //     //     $invoice->charities()->create($charityData);
+    //     // }
+
+    //     // // Create checklistables
+    //     // foreach ($args['checklistables'] ?? [] as $checklistableData) {
+    //     //     $invoice->checklistables()->create($checklistableData);
+    //     // }
+
+    // }
+
+    // public static function updateInvoice(int $invoiceId, array $input)
+    // {
+    //     $invoice = Invoice::find($invoiceId);
+    //     if (!$invoice) {
+    //         throw new \Exception('Invoice not found');
+    //     }
+
+    //     $input['date'] = isset($input['date']) ? Carbon::parse($input['date'])->format('Y-m-d') : null;
+    //     $input['valid_until'] = isset($input['valid_until']) ? Carbon::parse($input['valid_until'])->format('Y-m-d H:i:s') : null;
+    //     $input['paid_on'] = isset($input['paid_on']) ? Carbon::parse($input['paid_on'])->format('Y-m-d H:i:s') : null;
+    //     $input['timeframe'] = isset($input['timeframe']) ? Carbon::parse($input['timeframe'])->format('Y-m-d H:i:s') : null;
+
+    //     $user = Auth::user();
+    //     $mainFields = collect($input)->except([
+    //         'customers',
+    //         'items',
+    //         'taxes',
+    //         'discounts',
+    //         'reminders'
+    //     ])->toArray();
+
+    //     $mainFields['creator_id'] = $user->id;
+    //     $mainFields['company_id'] = $input['company_id'] ?? null;
+
+    //     $invoice->update($mainFields);
+
+    //     // Update items (delete old and add new)
+    //     $invoice->items()->delete();
+    //     foreach ($input['items'] ?? [] as $itemData) {
+    //         $invoice->items()->create($itemData);
+    //     }
+
+    //     // Update discounts
+    //     $invoice->discounts()->delete();
+    //     foreach ($input['discounts'] ?? [] as $discountData) {
+    //         if (
+    //             empty($discountData['discount_type']) ||
+    //             $discountData['discount_type'] === 'none'
+    //         ) {
+    //             continue;
+    //         }
+    //         $invoice->discounts()->create($discountData);
+    //     }
+
+    //     // Update customers (set customer_id to first, attach company if needed)
+    //     if (!empty($input['customers'])) {
+    //         $customerData = $input['customers'][0];
+    //         $customerId = $customerData['id'] ?? $customerData['customer_id'] ?? null;
+    //         if ($customerId) {
+    //             $customer = Customer::find($customerId);
+    //         } else {
+    //             $customerData['creator_id'] = $user->id;
+    //             $customerData['company_id'] = $mainFields['company_id'] ?? null;
+    //             $customer = Customer::create($customerData);
+    //         }
+    //         $invoice->customer_id = $customer->id;
+    //         $invoice->save();
+
+    //         if (!empty($input['company_id'])) {
+    //             $customer->companies()->syncWithoutDetaching([$input['company_id']]);
+    //         }
+    //     }
+
+    //     // Update reminders
+    //     $invoice->reminders()->delete();
+    //     foreach ($input['reminders'] ?? [] as $reminderData) {
+    //         $invoice->reminders()->create($reminderData);
+    //     }
+
+    //     // Update taxes
+    //     $invoice->taxes()->delete();
+    //     foreach ($input['taxes'] ?? [] as $taxData) {
+    //         if (
+    //             empty($taxData['tax_type']) ||
+    //             $taxData['tax_type'] === 'none'
+    //         ) {
+    //             continue;
+    //         }
+    //         $invoice->taxes()->create($taxData);
+    //     }
+
+    //     return $invoice;
+    // }
 }

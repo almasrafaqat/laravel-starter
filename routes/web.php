@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Auth\UserAuthController;
+use App\Models\Invoice;
+use App\Services\InvoiceService;
 use Illuminate\Support\Facades\Route;
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -19,13 +21,18 @@ Route::middleware([
 });
 
 
- Route::get('/email/verify/{id}/{hash}', [UserAuthController::class, 'verifyEmail'])->name('verification.verify');
+Route::get('/email/verify/{id}/{hash}', [UserAuthController::class, 'verifyEmail'])->name('verification.verify');
 
 
 
 
 
 Route::get('/test-pdf', function () {
+    $invoice = Invoice::find(5);
+    $formattedInvoice = (new InvoiceService())->formatInvoice($invoice);
+    return $downloadInvoice = (new InvoiceService())->downloadInvoice($formattedInvoice);
+
+    return response()->json($formattedInvoice);
     $pdf = Pdf::loadView('pdf.test', ['name' => 'Test User']);
     return $pdf->download('test.pdf');
 });
