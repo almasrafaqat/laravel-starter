@@ -8,19 +8,24 @@ use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Mail\Mailables\Attachment;
 
 class InvoiceMail extends Mailable
 {
     use Queueable, SerializesModels;
 
     public $invoice;
+    public $pdf;
+    public $footerData;
 
     /**
      * Create a new message instance.
      */
-    public function __construct($invoice)
+    public function __construct($invoice, $pdf, $footerData = [])
     {
         $this->invoice = $invoice;
+        $this->pdf = $pdf;
+        $this->footerData = $footerData;
     }
 
     /**
@@ -29,7 +34,7 @@ class InvoiceMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Invoice Mail',
+            subject: 'Invoice for ' . ($this->invoice['title'] ?? ''),
         );
     }
 
@@ -39,7 +44,8 @@ class InvoiceMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            view: 'view.name',
+            markdown: 'emails.invoices.default',
+            
         );
     }
 
@@ -50,6 +56,32 @@ class InvoiceMail extends Mailable
      */
     public function attachments(): array
     {
-        return [];
+        // Generate a descriptive filename
+        $filename = 'Invoice';
+
+        // Add invoice ID if available
+        if (!empty($this->invoice['id'])) {
+            $filename .= '_' . $this->invoice['id'];
+        }
+
+        $customer_name = $this->invoice->customer['name'] ?? 'customer';
+        // Add client name (sanitized for filename)
+        if (!empty($customer_name)) {
+            // Remove special characters and spaces
+            $clientName = preg_replace('/[^a-zA-Z0-9]/', '_', $customer_name);
+            $filename .= '_' . $clientName;
+        }
+
+        // Add date
+        if (!empty($this->invoice['date'])) {
+            $filename .= '_' . $this->invoice['date'];
+        }
+
+        // Add file extension
+        $filename .= '.pdf';
+        return [
+            Attachment::fromData(fn() => $this->pdf->output(), $filename)
+                ->withMime('application/pdf'),
+        ];
     }
 }

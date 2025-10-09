@@ -20,6 +20,18 @@ class Item extends Model
         'total'
     ];
 
+    protected $casts = [
+        'is_excluded_invoice_discount' => 'boolean',
+        'is_excluded_invoice_taxed' => 'boolean',
+        'is_discounted' => 'boolean',
+        'is_taxed' => 'boolean',
+        'quantity' => 'decimal:2',
+        'price' => 'decimal:2',
+        'subtotal' => 'decimal:2',
+        'total' => 'decimal:2',
+    ];
+
+
 
 
     public function invoice()

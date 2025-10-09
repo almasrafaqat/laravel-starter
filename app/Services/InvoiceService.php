@@ -2,11 +2,16 @@
 
 namespace App\Services;
 
+use App\Mail\InvoiceMail;
+use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Invoice;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Mail\Message;
 
 class InvoiceService
 {
@@ -85,6 +90,12 @@ class InvoiceService
         foreach ($items ?? [] as $itemData) {
             // Extract discount data from item if present
             $discountData = null;
+            $total = 0;
+            $subtotal =  $itemData['subtotal'] ?? 0;
+            $discounted_amount =  $itemData['discount_amount'] ?? 0;
+            $total =  $subtotal - $discounted_amount;
+
+
             if (
                 !empty($itemData['discount_type']) &&
                 $itemData['discount_type'] !== 'none'
@@ -105,6 +116,7 @@ class InvoiceService
                 'discount_amount',
                 'discount_name'
             ])->toArray();
+            $itemFields['total'] = $total;
 
             $item = $invoice->items()->create($itemFields);
 
@@ -281,6 +293,8 @@ class InvoiceService
                 'name' => $invoiceData->customer->name,
                 'company' => $invoiceData->customer->company,
                 'email' => $invoiceData->customer->email,
+                'cc' => $invoiceData->customer->cc,
+                'bcc' => $invoiceData->customer->bcc,
                 'phone' => $invoiceData->customer->phone,
                 'address' => $invoiceData->customer->address,
                 'credit_balance' => $invoiceData->customer->credit_balance,
@@ -311,7 +325,7 @@ class InvoiceService
     {
         if ($invoiceData instanceof \Illuminate\Database\Eloquent\Model) {
             if (!$invoiceData->relationLoaded('company')) {
-                $invoiceData->load('company');
+                $invoiceData->load('company.mailSettings');
             }
             $invoiceData['company'] = $invoiceData->company ? [
                 'id' => $invoiceData->company->id,
@@ -321,6 +335,7 @@ class InvoiceService
                 'address' => $invoiceData->company->address,
                 'website' => $invoiceData->company->website,
                 'logo' => $invoiceData->company->logo,
+                'slogan' => "Best Solutions for Your Business", // $invoiceData->company->slogan,
                 'tax_number' => $invoiceData->company->tax_number,
                 'registration_number' => $invoiceData->company->registration_number,
                 'country' => $invoiceData->company->country,
@@ -330,6 +345,24 @@ class InvoiceService
                 'description' => $invoiceData->company->description,
                 'language' => $invoiceData->company->language,
                 'currency' => $invoiceData->company->currency,
+                'footerData' => [
+                    'support_email' => $invoiceData->company->email,
+                    'support_phone' => $invoiceData->company->phone,
+                    'company_name' => $invoiceData->company->name,
+                    'support_url' => $invoiceData->company->website,
+                    'address' => $invoiceData->company->address,
+                    "facebook_url" => 'www.facebook.com',
+                    "twitter_url" => 'www.twitter.com',
+                    "instagram_url" => 'www.instagram.com',
+                    "whatsapp_number" => '1234567890',
+                    'footer_text' => 'Thank you for your business!',
+                    // 'twitter_url' => $invoiceData->company->twitter_url,
+                    // 'facebook_url' => $invoiceData->company->facebook_url,
+                    // 'instagram_url' => $invoiceData->company->instagram_url,
+                    // 'whatsapp_number' => $invoiceData->company->whatsapp_number,
+                    // 'footer_text' => $invoiceData->company->footer_text,
+                ]
+
             ] : null;
         }
         $invoiceData['company'] = $invoiceData['company'] ?? [];
@@ -347,7 +380,23 @@ class InvoiceService
             $invoiceData = $this->formatInvoiceCreator($invoiceData);
             $invoiceData = $this->formatCompany($invoiceData);
             $totalQuantity = array_sum(array_column($invoiceData['items'], 'quantity'));
+            $subtotal = array_sum(array_column($invoiceData['items'], 'total'));
             $invoiceData['total_quantity'] = $totalQuantity;
+            $invoiceData['item_subtotal'] = (float)$subtotal;
+            $total = $invoiceData['total'] ?? 0;
+
+
+            // Calculate total tax amount
+            $taxTotal = !empty($invoiceData['taxes'])
+                ? array_sum(array_column($invoiceData['taxes'], 'tax_amount'))
+                : 0;
+
+            // Calculate grand total (subtotal + tax)
+            $grandTotal = $total + $taxTotal;
+            $invoiceData['grand_total'] = round($grandTotal, 2);
+
+            $remaining = $grandTotal - ($invoiceData['amount_paid'] ?? 0);
+            $invoiceData['remaining'] = round($remaining, 2);
         }
         return $invoiceData;
     }
@@ -360,7 +409,7 @@ class InvoiceService
             'isPdf' => true,
         ];
 
-        $html = view('pdfs.invoice', $viewData)->render();
+        $html = view('pdfs.invoices.default', $viewData)->render();
         $pdf = Pdf::loadHTML($html);
         $pdf->setPaper('A4', 'portrait');
         $pdf->setOptions([
@@ -375,9 +424,92 @@ class InvoiceService
             'tempDir' => storage_path('app/dompdf/temp'),
             'logOutputFile' => storage_path('logs/dompdf.htm'),
         ]);
-        $filename = 'invoice_' . ($invoiceData['invoice_number'] ?? $invoiceData['id']) . '.pdf';
+
+        $filename = 'invoice_' . ($invoiceData['title'] ? $invoiceData['title'] : $invoiceData['id']) . '.pdf';
 
         return $pdf->download($filename);
+    }
+
+
+
+    public function sendInvoiceEmail($invoiceData, $toEmail)
+    {
+
+
+
+        $company = Company::find($invoiceData['company']['id'] ?? null);
+        $smtp = $this->getCompanyDefaultSmtp($company);
+
+        if (!$smtp) {
+            // Fallback to some default SMTP settings or throw an error
+            throw new \Exception('No SMTP settings found for the company.');
+        }
+
+        // Set mail config dynamically
+        Config::set('mail.mailers.smtp.host', $smtp['host']);
+        Config::set('mail.mailers.smtp.port', $smtp['port']);
+        Config::set('mail.mailers.smtp.username', $smtp['username']);
+        Config::set('mail.mailers.smtp.password', $smtp['password']);
+        Config::set('mail.mailers.smtp.encryption', $smtp['encryption']);
+        Config::set('mail.from.address', $smtp['from_address']);
+        Config::set('mail.from.name', $smtp['from_name']);
+
+        // Handle CC and BCC if provided
+        $ccEmails = !empty($invoiceData['customer']['cc']) ? $this->parseEmails($invoiceData['customer']['cc']) : [];
+        $bccEmails = !empty($invoiceData['customer']['bcc']) ? $this->parseEmails($invoiceData['customer']['bcc']) : [];
+
+        // Prepare PDF as attachment
+        $html = view('pdfs.invoices.default', [
+            'invoice' => $invoiceData,
+            'bankDetails' => $this->getBankDetail(),
+            'isPdf' => true,
+        ])->render();
+        $pdf = Pdf::loadHTML($html);
+
+        $footerData = $invoiceData['company']['footerData'] ?? [];
+        // return $footerData;
+        // $pdfContent = $pdf->output();
+
+        Mail::to($toEmail)
+            ->cc($ccEmails)
+            ->bcc($bccEmails)
+            ->send(new InvoiceMail($invoiceData, $pdf, $footerData));
+
+
+        // Send email
+        // Mail::send('emails.invoices.default', ['invoice' => $invoiceData], function (Message $message) use ($toEmail, $pdfContent, $invoiceData, $smtp) {
+        //     $message->to($toEmail)
+        //         ->subject('Your Invoice')
+        //         ->from($smtp['from_address'], $smtp['from_name'])
+        //         ->attachData($pdfContent, 'invoice_' . ($invoiceData['title'] ?? $invoiceData['id']) . '.pdf', [
+        //             'mime' => 'application/pdf',
+        //         ]);
+        // });
+    }
+
+    public function getCompanyDefaultSmtp($company)
+    {
+        // Ensure mailSettings relation is loaded
+        if ($company && (!$company->relationLoaded('mailSettings'))) {
+            $company->load('mailSettings');
+        }
+
+        // Get the first/default mail setting
+        $mailSetting = $company->mailSettings->first();
+
+        if ($mailSetting) {
+            return [
+                'host'        => $mailSetting->host,
+                'port'        => $mailSetting->port,
+                'username'    => $mailSetting->username,
+                'password'    => $mailSetting->password,
+                'encryption'  => $mailSetting->encryption,
+                'from_address' => $mailSetting->from_address,
+                'from_name'   => $mailSetting->from_name,
+            ];
+        }
+
+        return null;
     }
 
     /**
@@ -395,6 +527,28 @@ class InvoiceService
             'swift_code' => config('app.swift_code'),
         ];
     }
+
+    /**
+     * Parse comma-separated email addresses into an array
+     *
+     * @param string $emailString
+     * @return array
+     */
+    private function parseEmails($emailString)
+    {
+        if (empty($emailString)) {
+            return [];
+        }
+
+        // Split by comma and trim whitespace
+        $emails = array_map('trim', explode(',', $emailString));
+
+        // Filter out empty values
+        return array_filter($emails, function ($email) {
+            return !empty($email) && filter_var($email, FILTER_VALIDATE_EMAIL);
+        });
+    }
+
 
     // public static function updateInvoice(int $invoiceId, array $input)
     // {

@@ -31,4 +31,10 @@ class TimeConversionService
   {
     return $this->convertToUserTimezone($utcDateTime, $userTimezone)->format($format);
   }
+
+  public function getFormattedDate($date, $timezone = null)
+  {
+    $timezone = $timezone ?? config('app.timezone');
+    return $this->formatForUser($date, $timezone, 'd F, Y');
+  }
 }

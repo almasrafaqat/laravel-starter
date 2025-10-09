@@ -37,6 +37,9 @@ type Query {
 
     invoice(id: ID!): Invoice @find
     invoices(company_id: ID): [Invoice!]! @paginate(defaultCount: 10)
+
+    viewInvoice(id: ID!): Invoice!
+        @field(resolver: "App\\GraphQL\\Queries\\InvoiceQuery@viewInvoice")
 }
 
 type Plan {
@@ -217,6 +220,12 @@ type Mutation {
         @field(
             resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@createInvoice"
         )
+    sendInvoice(id: ID!): SendInvoiceResponse!
+        @field(resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@sendInvoice")
+    downloadInvoice(id: ID!): DownloadInvoiceResponse!
+        @field(
+            resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@downloadInvoice"
+        )
 }
 
 input CreateInvoiceInput {
@@ -294,6 +303,16 @@ input InvoiceReminderInput {
     timezone: String
     expiry_date: DateTime
     message: String
+}
+
+type SendInvoiceResponse {
+    message: String!
+    success: Boolean!
+}
+
+type DownloadInvoiceResponse {
+    url: String!
+    success: Boolean!
 }
 
 # type Mutation {

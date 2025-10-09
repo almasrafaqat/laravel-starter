@@ -98,12 +98,12 @@ class Invoice extends Model
     }
 
     /**Order data user timezone */
-    public function getFormattedCreatedAtAttribute()
+    public function getFormattedDateAttribute()
     {
         $timeConversionService = app(TimeConversionService::class);
         $timezone = $this->getInvoiceTimezone();
 
-        return $timeConversionService->formatForUser($this->created_at, $timezone);
+        return $timeConversionService->getFormattedDate($this->created_at, $timezone);
     }
 
     private function getInvoiceTimezone()
