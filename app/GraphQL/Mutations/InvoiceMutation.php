@@ -12,6 +12,13 @@ class InvoiceMutation
         return InvoiceService::createInvoice($args['input']);
     }
 
+
+    public function updateInvoice($_, array $args)
+    {
+        $invoice = Invoice::findOrFail($args['id']);
+        return InvoiceService::updateInvoice($invoice->id, $args['input']);
+    }
+
     public function sendInvoice($_, array $args)
     {
         $invoice = Invoice::findOrFail($args['id']);
@@ -25,20 +32,24 @@ class InvoiceMutation
         ];
     }
 
-    public function downloadInvoice($_, array $args)
+    public function duplicateInvoice($_, array $args)
     {
         $invoice = Invoice::findOrFail($args['id']);
-        $formattedInvoice = (new InvoiceService())->formatInvoice($invoice);
+        return (new InvoiceService())->duplicateInvoice($invoice);
+    }
+    public function deleteInvoice($_, array $args)
+    {
+        $invoice = Invoice::find($args['id']);
+        (new InvoiceService())->deleteInvoice($invoice);
+        return true;
+    }
 
-        // Generate and store PDF, return a download URL
-        $pdf = (new InvoiceService())->downloadInvoice($formattedInvoice);
-        return $downloadInvoice = (new InvoiceService())->downloadInvoice($formattedInvoice);
-        $url = ''; // Implement this method to save PDF and return URL
-        // $url = $this->storeAndGetUrl($pdf); // Implement this method to save PDF and return URL
+    public function searchCustomers($_, array $args)
+    {
+        $query = $args['query'];
+        $companyId = $args['companyId'];
+        $userId = $args['userId'];
 
-        return [
-            'url' => $url,
-            'success' => (bool)$url,
-        ];
+        return (new InvoiceService())->searchCustomers($query, $companyId, $userId);
     }
 }

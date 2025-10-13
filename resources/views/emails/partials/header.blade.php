@@ -1,6 +1,11 @@
 <div class="logo-container">
+   
     <div class="logo">
-        <img src="{{  $invoice->company['logo'] ? public_path($invoice->company['logo']) : $invoice->company['name'] ?? '' }}" alt="{{ $invoice->company['name'] ?? '' }}">
+        @if(isset($isPdf) && $isPdf)
+            <img src="{{  $invoice->company['logo'] ? public_path($invoice->company['logo']) : $invoice->company['name'] ?? '' }}" alt="{{ $invoice->company['name'] ?? '' }}">
+        @else
+            <img src="{{ $invoice->company['logo'] ? asset($invoice->company['logo']) : '' }}" alt="{{ $invoice->company['name'] ?? '' }}">
+        @endif
     </div>
     <div class="slogan-wrapper">
     <div class="slogan" style="

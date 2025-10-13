@@ -29,26 +29,69 @@ class InvoiceService
 
 
 
+    // private static function handleCustomers($invoice, $input, $user, $mainFields)
+    // {
+    //     foreach ($input['customers'] ?? [] as $customerData) {
+    //         $customerId = $customerData['id'] ?? $customerData['customer_id'] ?? null;
+    //         if ($customerId) {
+    //             $customer = Customer::find($customerId);
+    //         } else {
+    //             $customerData['creator_id'] = $user->id;
+    //             $customerData['company_id'] = $mainFields['company_id'] ?? null;
+    //             $customer = Customer::create($customerData);
+    //         }
+    //         if (!$invoice->customer_id) {
+    //             $invoice->customer_id = $customer->id;
+    //             $invoice->save();
+    //         }
+    //         if (!empty($input['company_id'])) {
+    //             $customer->companies()->syncWithoutDetaching([$input['company_id']]);
+    //         }
+    //     }
+    // }
+
     private static function handleCustomers($invoice, $input, $user, $mainFields)
     {
         foreach ($input['customers'] ?? [] as $customerData) {
             $customerId = $customerData['id'] ?? $customerData['customer_id'] ?? null;
+            $companyId = $mainFields['company_id'] ?? $input['company_id'] ?? null;
+            $creatorId = $user->id;
+
             if ($customerId) {
-                $customer = Customer::find($customerId);
+                // ✅ Update existing only if ID is given
+                $customer = Customer::where('id', $customerId)
+                    ->where('company_id', $companyId)
+                    ->where('creator_id', $creatorId)
+                    ->first();
+
+                if ($customer) {
+                    $customer->update($customerData);
+                } else {
+                    // If ID not found, create a new one
+                    $customerData['company_id'] = $companyId;
+                    $customerData['creator_id'] = $creatorId;
+                    $customer = Customer::create($customerData);
+                }
             } else {
-                $customerData['creator_id'] = $user->id;
-                $customerData['company_id'] = $mainFields['company_id'] ?? null;
+                // 🆕 Always create new if no ID
+                $customerData['company_id'] = $companyId;
+                $customerData['creator_id'] = $creatorId;
                 $customer = Customer::create($customerData);
             }
-            if (!$invoice->customer_id) {
-                $invoice->customer_id = $customer->id;
-                $invoice->save();
-            }
-            if (!empty($input['company_id'])) {
-                $customer->companies()->syncWithoutDetaching([$input['company_id']]);
+
+
+            $invoice->customer_id = $customer->id;
+            $invoice->save();
+
+
+            // Sync company relation if applicable
+            if (!empty($companyId) && method_exists($customer, 'companies')) {
+                $customer->companies()->syncWithoutDetaching([$companyId]);
             }
         }
     }
+
+
 
     private static function handleDiscounts($invoice, $discounts, $deleteOld = false)
     {
@@ -85,8 +128,14 @@ class InvoiceService
     private static function handleItems($invoice, $items, $deleteOld = false)
     {
         if ($deleteOld) {
+
+            foreach ($invoice->items as $item) {
+                $item->discounts()->delete();
+            }
+
             $invoice->items()->delete();
         }
+
         foreach ($items ?? [] as $itemData) {
             // Extract discount data from item if present
             $discountData = null;
@@ -96,7 +145,9 @@ class InvoiceService
             $total =  $subtotal - $discounted_amount;
 
 
+
             if (
+                $itemData['is_discounted'] === true  &&
                 !empty($itemData['discount_type']) &&
                 $itemData['discount_type'] !== 'none'
             ) {
@@ -130,6 +181,33 @@ class InvoiceService
             }
         }
     }
+
+
+    private static function duplicateItems($oldInvoice, $newInvoice)
+    {
+        $itemMap = [];
+
+        foreach ($oldInvoice->items as $oldItem) {
+            // Replicate the item
+            $newItem = $oldItem->replicate();
+            $newItem->invoice_id = $newInvoice->id;
+            $newItem->save();
+
+            // Map old item ID to new item instance
+            $itemMap[$oldItem->id] = $newItem;
+
+            // Replicate all discounts related to this item
+            foreach ($oldItem->discounts as $oldDiscount) {
+                $newDiscount = $oldDiscount->replicate();
+                $newDiscount->discountable_id = $newItem->id;
+                $newDiscount->discountable_type = get_class($newItem);
+                $newDiscount->save();
+            }
+        }
+
+        return $itemMap;
+    }
+
 
     private static function handleReminders($invoice, $reminders, $deleteOld = false)
     {
@@ -170,6 +248,43 @@ class InvoiceService
 
         return $invoice;
     }
+
+    public static function updateInvoice(int $invoiceId, array $input)
+    {
+        $invoice = Invoice::findOrFail($invoiceId);
+        $input['date'] = isset($input['date']) ? Carbon::parse($input['date'])->format('Y-m-d') : null;
+        $input['valid_until'] = isset($input['valid_until']) ? Carbon::parse($input['valid_until'])->format('Y-m-d H:i:s') : null;
+        $input['paid_on'] = isset($input['paid_on']) ? Carbon::parse($input['paid_on'])->format('Y-m-d H:i:s') : null;
+        $input['timeframe'] = isset($input['timeframe']) ? Carbon::parse($input['timeframe'])->format('Y-m-d H:i:s') : null;
+        $user = Auth::user();
+        // Remove arrays before saving
+        $mainFields = collect($input)->except([
+            'customers',
+            'items',
+            'taxes',
+            'discounts',
+            'reminders'
+        ])->toArray();
+
+        // Add required fields not in input
+        $mainFields['creator_id'] = $user->id;
+        $mainFields['company_id'] = $input['company_id'] ?? null;
+        $invoice->update($mainFields);
+
+        self::handleItems($invoice, $input['items'], true);
+        self::handleDiscounts($invoice, $input['discounts'], true);
+        self::handleCustomers($invoice, $input, $user, $mainFields);
+        self::handleReminders($invoice, $input['reminders'], true);
+        self::handleTaxes($invoice, $input['taxes'], true);
+
+        return $invoice;
+    }
+
+
+
+
+
+
 
     /**
      * Convert invoice items to array format
@@ -392,13 +507,27 @@ class InvoiceService
                 : 0;
 
             // Calculate grand total (subtotal + tax)
-            $grandTotal = $total + $taxTotal;
+            $grandTotal = $total;
+            // $grandTotal = $total + $taxTotal;
             $invoiceData['grand_total'] = round($grandTotal, 2);
 
             $remaining = $grandTotal - ($invoiceData['amount_paid'] ?? 0);
             $invoiceData['remaining'] = round($remaining, 2);
         }
         return $invoiceData;
+    }
+
+    public function prevViewInvoice($invoiceData)
+    {
+        $viewData = [
+            'invoice' => $invoiceData,
+            'bankDetails' => $this->getBankDetail(),
+            'isPdf' => false,
+        ];
+
+
+
+        return view('pdfs.invoices.default', $viewData)->render();
     }
 
     public function downloadInvoice($invoiceData)
@@ -487,6 +616,66 @@ class InvoiceService
         // });
     }
 
+
+    public function duplicateInvoice($invoice)
+    {
+        if ($invoice) {
+            // Replicate the invoice
+            $newInvoice = $invoice->replicate();
+            $newInvoice->invoice_number = $this->generateNewInvoiceId($invoice->invoice_number);
+            $newInvoice->status = 'draft';
+            $newInvoice->payment_status = 'pending';
+            $newInvoice->created_at = now();
+            $newInvoice->updated_at = now();
+            $newInvoice->save();
+
+            // 2. Duplicate items + discounts in one step
+            $this->duplicateItems($invoice, $newInvoice);
+            // Use handleDiscounts to duplicate discounts
+            $this->handleDiscounts($newInvoice, $invoice->discounts->toArray());
+
+            // Use handleTaxes to duplicate taxes
+            $this->handleTaxes($newInvoice, $invoice->taxes->toArray());
+
+            // Use handleReminders to duplicate reminders
+            $this->handleReminders($newInvoice, $invoice->reminders->toArray());
+
+            return $newInvoice;
+        }
+        return null;
+    }
+
+
+
+
+    public function deleteInvoice($invoice)
+    {
+        if (!$invoice) {
+            return false;
+        }
+
+        // 1️⃣ Delete all item-level discounts first
+        foreach ($invoice->items as $item) {
+            $item->discounts()->delete();
+        }
+
+        // 2️⃣ Then delete the items themselves
+        $invoice->items()->delete();
+
+        // 3️⃣ Delete invoice-level relations
+        $invoice->taxes()->delete();
+        $invoice->discounts()->delete();   // invoice-level discounts
+        $invoice->reminders()->delete();
+
+        // 4️⃣ Finally delete the invoice itself
+        $invoice->delete();
+
+        return true;
+    }
+
+
+
+
     public function getCompanyDefaultSmtp($company)
     {
         // Ensure mailSettings relation is loaded
@@ -511,6 +700,26 @@ class InvoiceService
 
         return null;
     }
+
+
+    public function searchCustomers($query, $companyId, $userId)
+    {
+        $customers = Customer::where(function ($q) use ($query) {
+            $q->where('name', 'like', '%' . $query . '%')
+                ->orWhere('email', 'like', '%' . $query . '%')
+                ->orWhere('company', 'like', '%' . $query . '%');
+        })
+            ->where(function ($q) use ($companyId, $userId) {
+                $q->whereHas('companies', function ($q2) use ($companyId) {
+                    $q2->where('companies.id', $companyId);
+                })->orWhere('creator_id', $userId);
+            })
+            ->limit(10)
+            ->get();
+
+        return $customers;
+    }
+
 
     /**
      * Get bank details for display in quotations
@@ -550,207 +759,39 @@ class InvoiceService
     }
 
 
-    // public static function updateInvoice(int $invoiceId, array $input)
-    // {
-    //     // ...existing code...
-    //     $invoice->update($mainFields);
-
-    //     self::handleItems($invoice, $input['items'], true);
-    //     self::handleDiscounts($invoice, $input['discounts'], true);
-    //     self::handleCustomers($invoice, $input, $user, $mainFields);
-    //     self::handleReminders($invoice, $input['reminders'], true);
-    //     self::handleTaxes($invoice, $input['taxes'], true);
-
-    //     return $invoice;
-    // }
 
 
 
-    // public static function createInvoice(array $input)
-    // {
+    /**
+     * Generate a new unique invoice ID based on the original
+     */
+    protected function generateNewInvoiceId(string $originalId): string
+    {
+        if (preg_match('/^(.*?)(\d+)$/', $originalId, $matches)) {
+            $base = $matches[1];
+            $number = (int)$matches[2];
 
-    //     $input['date'] = isset($input['date']) ? Carbon::parse($input['date'])->format('Y-m-d') : null;
-    //     $input['valid_until'] = isset($input['valid_until']) ? Carbon::parse($input['valid_until'])->format('Y-m-d H:i:s') : null;
-    //     $input['paid_on'] = isset($input['paid_on']) ? Carbon::parse($input['paid_on'])->format('Y-m-d H:i:s') : null;
-    //     $input['timeframe'] = isset($input['timeframe']) ? Carbon::parse($input['timeframe'])->format('Y-m-d H:i:s') : null;
-    //     $user = Auth::user();
-    //     // Remove arrays before saving
-    //     $mainFields = collect($input)->except([
-    //         'customers',
-    //         'items',
-    //         'taxes',
-    //         'discounts',
-    //         'reminders'
-    //     ])->toArray();
+            // Keep incrementing until we find a unique ID
+            do {
+                $number++;
+                $newId = $base . $number;
+                $exists = Invoice::where('invoice_number', $newId)->exists();
+            } while ($exists);
 
-    //     // Add required fields not in input
-    //     $mainFields['creator_id'] = $user->id;
-    //     $mainFields['company_id'] = $input['company_id'] ?? null;
+            return $newId;
+        }
 
-    //     $invoice = Invoice::create($mainFields);
+        // If no number pattern found, add -COPY suffix and ensure uniqueness
+        $baseId = $originalId . '-COPY';
+        $counter = 1;
+        $newId = $baseId;
 
+        // Keep incrementing until we find a unique ID
+        while (Invoice::where('invoice_number', $newId)->exists()) {
+            $counter++;
+            $newId = $baseId . $counter;
+        }
 
-    //     // Create items
-    //     foreach ($input['items'] ?? [] as $itemData) {
-    //         $invoice->items()->create($itemData);
-    //     }
-
-    //     // // Create discounts
-    //     foreach ($input['discounts'] ?? [] as $discountData) {
-    //         if (
-    //             empty($discountData['discount_type']) ||
-    //             $discountData['discount_type'] === 'none'
-    //         ) {
-    //             continue; // Skip this discount
-    //         }
-    //         $invoice->discounts()->create($discountData);
-    //     }
-
-
-    //     // Create Customers and associate them with the invoice
-    //     foreach ($input['customers'] ?? [] as $customerData) {
-    //         // If customerData has 'id' or 'customer_id', use existing customer
-    //         $customerId = $customerData['id'] ?? $customerData['customer_id'] ?? null;
-    //         if ($customerId) {
-    //             $customer = Customer::find($customerId);
-    //             // Optionally update customer info if needed
-    //         } else {
-    //             // Create new customer
-    //             $customerData['creator_id'] = $user->id;
-    //             $customerData['company_id'] = $mainFields['company_id'] ?? null;
-    //             $customer = Customer::create($customerData);
-    //         }
-
-
-    //         // Optionally set the first customer as the invoice's main customer
-    //         if (!$invoice->customer_id) {
-    //             $invoice->customer_id = $customer->id;
-    //             $invoice->save();
-    //         }
-
-    //         // Attach customer to company (many-to-many)
-    //         if (!empty($input['company_id'])) {
-    //             $customer->companies()->attach($input['company_id']);
-    //         }
-    //     }
-
-
-    //     // Create reminders
-    //     foreach ($input['reminders'] ?? [] as $reminderData) {
-    //         $invoice->reminders()->create($reminderData);
-    //     }
-
-
-    //     foreach ($input['taxes'] ?? [] as $taxData) {
-    //         if (
-    //             empty($taxData['tax_type']) ||
-    //             $taxData['tax_type'] === 'none'
-    //         ) {
-    //             continue; // Skip this tax
-    //         }
-    //         $invoice->taxes()->create($taxData);
-    //     }
-
-    //     return $invoice;
-
-    //     // // Create links
-    //     // foreach ($args['links'] ?? [] as $linkData) {
-    //     //     $invoice->links()->create($linkData);
-    //     // }
-
-    //     // // Create charities
-    //     // foreach ($args['charities'] ?? [] as $charityData) {
-    //     //     $invoice->charities()->create($charityData);
-    //     // }
-
-    //     // // Create checklistables
-    //     // foreach ($args['checklistables'] ?? [] as $checklistableData) {
-    //     //     $invoice->checklistables()->create($checklistableData);
-    //     // }
-
-    // }
-
-    // public static function updateInvoice(int $invoiceId, array $input)
-    // {
-    //     $invoice = Invoice::find($invoiceId);
-    //     if (!$invoice) {
-    //         throw new \Exception('Invoice not found');
-    //     }
-
-    //     $input['date'] = isset($input['date']) ? Carbon::parse($input['date'])->format('Y-m-d') : null;
-    //     $input['valid_until'] = isset($input['valid_until']) ? Carbon::parse($input['valid_until'])->format('Y-m-d H:i:s') : null;
-    //     $input['paid_on'] = isset($input['paid_on']) ? Carbon::parse($input['paid_on'])->format('Y-m-d H:i:s') : null;
-    //     $input['timeframe'] = isset($input['timeframe']) ? Carbon::parse($input['timeframe'])->format('Y-m-d H:i:s') : null;
-
-    //     $user = Auth::user();
-    //     $mainFields = collect($input)->except([
-    //         'customers',
-    //         'items',
-    //         'taxes',
-    //         'discounts',
-    //         'reminders'
-    //     ])->toArray();
-
-    //     $mainFields['creator_id'] = $user->id;
-    //     $mainFields['company_id'] = $input['company_id'] ?? null;
-
-    //     $invoice->update($mainFields);
-
-    //     // Update items (delete old and add new)
-    //     $invoice->items()->delete();
-    //     foreach ($input['items'] ?? [] as $itemData) {
-    //         $invoice->items()->create($itemData);
-    //     }
-
-    //     // Update discounts
-    //     $invoice->discounts()->delete();
-    //     foreach ($input['discounts'] ?? [] as $discountData) {
-    //         if (
-    //             empty($discountData['discount_type']) ||
-    //             $discountData['discount_type'] === 'none'
-    //         ) {
-    //             continue;
-    //         }
-    //         $invoice->discounts()->create($discountData);
-    //     }
-
-    //     // Update customers (set customer_id to first, attach company if needed)
-    //     if (!empty($input['customers'])) {
-    //         $customerData = $input['customers'][0];
-    //         $customerId = $customerData['id'] ?? $customerData['customer_id'] ?? null;
-    //         if ($customerId) {
-    //             $customer = Customer::find($customerId);
-    //         } else {
-    //             $customerData['creator_id'] = $user->id;
-    //             $customerData['company_id'] = $mainFields['company_id'] ?? null;
-    //             $customer = Customer::create($customerData);
-    //         }
-    //         $invoice->customer_id = $customer->id;
-    //         $invoice->save();
-
-    //         if (!empty($input['company_id'])) {
-    //             $customer->companies()->syncWithoutDetaching([$input['company_id']]);
-    //         }
-    //     }
-
-    //     // Update reminders
-    //     $invoice->reminders()->delete();
-    //     foreach ($input['reminders'] ?? [] as $reminderData) {
-    //         $invoice->reminders()->create($reminderData);
-    //     }
-
-    //     // Update taxes
-    //     $invoice->taxes()->delete();
-    //     foreach ($input['taxes'] ?? [] as $taxData) {
-    //         if (
-    //             empty($taxData['tax_type']) ||
-    //             $taxData['tax_type'] === 'none'
-    //         ) {
-    //             continue;
-    //         }
-    //         $invoice->taxes()->create($taxData);
-    //     }
-
-    //     return $invoice;
-    // }
+        return $newId;
+    }
 }

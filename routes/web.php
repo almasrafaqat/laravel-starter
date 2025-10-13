@@ -28,6 +28,7 @@ Route::get('/email/verify/{id}/{hash}', [UserAuthController::class, 'verifyEmail
 
 
 
+//being used frontend
 Route::get('/invoice/{id}/{action}', function ($id, $action) {
     $invoice = Invoice::find($id);
     $formattedInvoice = (new InvoiceService())->formatInvoice($invoice);
@@ -38,13 +39,16 @@ Route::get('/invoice/{id}/{action}', function ($id, $action) {
 
     if ($action == 'view') {
 
-        return response()->json($formattedInvoice);
+        return (new InvoiceService())->prevViewInvoice($formattedInvoice);
+        // return response()->json($formattedInvoice);
     }
 
     $pdf = Pdf::loadView('pdf.test', ['name' => 'Test User']);
     return $pdf->download('test.pdf');
 });
 
+
+//Not using in frontend only for testing purpose
 Route::get('/send/invoice/{id}', function ($id) {
     $invoice = Invoice::find($id);
     $formattedInvoice = (new InvoiceService())->formatInvoice($invoice);

@@ -40,6 +40,11 @@ type Query {
 
     viewInvoice(id: ID!): Invoice!
         @field(resolver: "App\\GraphQL\\Queries\\InvoiceQuery@viewInvoice")
+
+    searchCustomers(query: String!, companyId: ID!, userId: ID!): [Customer!]!
+        @field(
+            resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@searchCustomers"
+        )
 }
 
 type Plan {
@@ -132,11 +137,32 @@ type Invoice {
     id: ID!
     title: String
     invoice_number: String
+    currency: String
+    status: String
+    payment_status: String
+    amount_paid: Float
+    balance_due: Float
+    total: Float
+    date: DateTime
+    timeframe: DateTime
+    importance: String
+    notes: String
+    template_id: ID
+    valid_until: DateTime
+    paid_on: DateTime
+    payment_method: String
+    reference: String
+    description: String
+    currency_rate: Float
+    total_pkr: Float
+    created_at: DateTime
+    updated_at: DateTime
     customer: Customer @belongsTo
     company: Company @belongsTo
     creator: User @belongsTo
     items: [Item!]! @hasMany
     discounts: [Discount!]! @morphMany
+    taxes: [Tax!]! @morphMany
     reminders: [Reminder!]! @morphMany
     links: [Link!]! @morphMany
     charities: [Charity!]! @hasMany
@@ -147,8 +173,12 @@ type Customer {
     id: ID!
     name: String!
     email: String
+    company: String
     phone: String
     address: String
+    credit_balance: Float
+    cc: String
+    bcc: String
 }
 type Item {
     id: ID!
@@ -164,6 +194,7 @@ type Item {
     is_taxed: Boolean!
     is_excluded_invoice_taxed: Boolean!
     invoice: Invoice! @belongsTo
+    discounts: [Discount!]! @morphMany
 }
 type Discount {
     id: ID!
@@ -171,7 +202,20 @@ type Discount {
     discountable_type: String!
     discount_type: String!
     discount_value: Float!
+    discount_name: String
+    discount_amount: Float
 }
+
+type Tax {
+    id: ID!
+    taxable_id: ID!
+    taxable_type: String!
+    tax_type: String!
+    tax_value: Float!
+    tax_name: String
+    tax_amount: Float
+}
+
 type Reminder {
     id: ID!
     remindable_id: ID!
@@ -220,15 +264,24 @@ type Mutation {
         @field(
             resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@createInvoice"
         )
+    updateInvoice(id: ID!, input: CreateInvoiceInput!): Invoice
+        @field(
+            resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@updateInvoice"
+        )
     sendInvoice(id: ID!): SendInvoiceResponse!
         @field(resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@sendInvoice")
-    downloadInvoice(id: ID!): DownloadInvoiceResponse!
+    deleteInvoice(id: ID!): Boolean
         @field(
-            resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@downloadInvoice"
+            resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@deleteInvoice"
+        )
+    duplicateInvoice(id: ID!): Invoice
+        @field(
+            resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@duplicateInvoice"
         )
 }
 
 input CreateInvoiceInput {
+    id: ID
     title: String!
     invoice_number: String
     currency: String
@@ -255,10 +308,10 @@ input CreateInvoiceInput {
     taxes: [InvoiceTaxInput!]
     discounts: [InvoiceDiscountInput!]
     reminders: [InvoiceReminderInput!]
-    # Add other fields as needed
 }
 
 input CustomerInput {
+    id: ID
     credit_balance: Float
     name: String!
     email: String
@@ -307,11 +360,6 @@ input InvoiceReminderInput {
 
 type SendInvoiceResponse {
     message: String!
-    success: Boolean!
-}
-
-type DownloadInvoiceResponse {
-    url: String!
     success: Boolean!
 }
 
