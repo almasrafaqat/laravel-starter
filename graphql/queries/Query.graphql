@@ -1,0 +1,39 @@
+"Indicates what fields are available at the top level of a query operation."
+type Query {
+    # User Queries
+    user(
+        "Search by primary key."
+        id: ID @eq @rules(apply: ["prohibits:email", "required_without:email"])
+        "Search by email address."
+        email: String @eq @rules(apply: ["prohibits:id", "required_without:id", "email"])
+    ): User @find
+
+    "List multiple users."
+    users(
+        "Filters by name. Accepts SQL LIKE wildcards `%` and `_`."
+        name: String @where(operator: "like")
+    ): [User!]! @paginate(defaultCount: 10)
+
+    me: User @auth
+
+    # Company Queries
+    companies: [Company!]! @all
+    company(id: ID!): Company @find
+
+    "Get the authenticated user's company and its plans"
+    myCompany: Company @field(resolver: "App\\GraphQL\\Queries\\CompanyQuery@myCompany")
+    myCompanies: [Company!]! @field(resolver: "App\\GraphQL\\Queries\\CompanyQuery@myCompanies")
+
+    # Plan Queries
+    plans: [Plan!]! @all
+    plan(id: ID!): Plan @find
+
+    # Invoice Queries
+    invoice(id: ID!): Invoice @find
+    invoices(company_id: ID): [Invoice!]! @paginate(defaultCount: 10)
+
+    viewInvoice(id: ID!): Invoice! @field(resolver: "App\\GraphQL\\Queries\\InvoiceQuery@viewInvoice")
+    
+    # Customer Queries
+    searchCustomers(query: String!, companyId: ID!, userId: ID!): [Customer!]! @field(resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@searchCustomers")
+}

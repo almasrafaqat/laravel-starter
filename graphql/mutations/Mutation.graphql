@@ -1,0 +1,14 @@
+type Mutation {
+    # Invoice Mutations
+    createInvoice(input: CreateInvoiceInput!): Invoice @field(resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@createInvoice")
+    updateInvoice(id: ID!, input: CreateInvoiceInput!): Invoice @field(resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@updateInvoice")
+    sendInvoice(id: ID!): SendInvoiceResponse! @field(resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@sendInvoice")
+    deleteInvoice(id: ID!): Boolean @field(resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@deleteInvoice")
+    duplicateInvoice(id: ID!): Invoice @field(resolver: "App\\GraphQL\\Mutations\\InvoiceMutation@duplicateInvoice")
+    
+    # Company Mutations
+    createCompany(input: CreateCompanyInput!): CompanyResponse! @field(resolver: "App\\GraphQL\\Mutations\\CompanyMutation@createCompany")
+    updateCompany(input: UpdateCompanyInput!): CompanyResponse! @field(resolver: "App\\GraphQL\\Mutations\\CompanyMutation@updateCompany")
+    deleteCompany(id: ID!): CompanyResponse! @field(resolver: "App\\GraphQL\\Mutations\\CompanyMutation@deleteCompany")
+    setDefaultCompany(id: ID!): CompanyResponse! @field(resolver: "App\\GraphQL\\Mutations\\CompanyMutation@setDefaultCompany")
+}

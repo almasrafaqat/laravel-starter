@@ -1,0 +1,8 @@
+"A charity associated with an invoice."
+type Charity {
+    id: ID!
+    invoice_id: ID!
+    cause_name: String!
+    value: Float!
+    invoice: Invoice! @belongsTo
+}

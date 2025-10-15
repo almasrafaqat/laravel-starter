@@ -1,0 +1,83 @@
+"Input for creating or updating an invoice"
+input CreateInvoiceInput {
+    id: ID
+    title: String!
+    invoice_number: String
+    currency: String
+    status: String
+    payment_status: String
+    amount_paid: Float
+    balance_due: Float
+    total: Float
+    date: DateTime
+    timeframe: DateTime
+    importance: String
+    notes: String
+    template_id: ID
+    valid_until: DateTime
+    paid_on: DateTime
+    payment_method: String
+    reference: String
+    description: String
+    currency_rate: Float
+    total_pkr: Float
+    company_id: ID
+    customers: [CustomerInput!]
+    items: [InvoiceItemInput!]
+    taxes: [InvoiceTaxInput!]
+    discounts: [InvoiceDiscountInput!]
+    reminders: [InvoiceReminderInput!]
+}
+
+input CustomerInput {
+    id: ID
+    credit_balance: Float
+    name: String!
+    email: String
+    company: String
+    phone: String
+    address: String
+    cc: String
+    bcc: String
+}
+
+input InvoiceItemInput {
+    name: String!
+    description: String
+    quantity: Int!
+    price: Float!
+    subtotal: Float
+    total: Float
+    is_discounted: Boolean
+    is_excluded_invoice_discount: Boolean
+    is_taxed: Boolean
+    is_excluded_invoice_taxed: Boolean
+    discount_type: String
+    discount_value: Float
+    discount_amount: Float
+}
+input InvoiceTaxInput {
+    tax_type: String!
+    tax_value: Float!
+    tax_name: String
+    tax_amount: Float
+}
+
+input InvoiceDiscountInput {
+    discount_type: String!
+    discount_value: Float!
+    discount_name: String
+    discount_amount: Float
+}
+
+input InvoiceReminderInput {
+    schedule_date: DateTime
+    timezone: String
+    expiry_date: DateTime
+    message: String
+}
+
+type SendInvoiceResponse {
+    message: String!
+    success: Boolean!
+}

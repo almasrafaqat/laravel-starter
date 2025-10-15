@@ -1,0 +1,8 @@
+type Checklistable {
+    id: ID!
+    checklistable_id: ID!
+    checklistable_type: String!
+    title: String!
+    is_completed: Boolean!
+    checklist: Checklist @belongsTo
+}

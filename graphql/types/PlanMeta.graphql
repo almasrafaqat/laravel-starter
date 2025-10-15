@@ -1,0 +1,14 @@
+"Plan metadata for storing additional key-value information."
+type PlanMeta {
+    id: ID!
+    plan_id: ID!
+    meta_key: String!
+    meta_value: String
+    meta_data: JSON
+    is_active: Boolean
+    is_default: Boolean
+    meta_order: Int
+    meta_group: String
+    meta_type: String
+    plan: Plan! @belongsTo
+}

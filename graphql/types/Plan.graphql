@@ -1,0 +1,16 @@
+"A subscription plan."
+type Plan {
+    id: ID!
+    name: String!
+    description: String
+    price: Float
+    billing_cycle: String
+    is_active: Boolean
+    is_default: Boolean
+    max_users: Int
+    max_projects: Int
+    features: String
+    currency: String
+    duration_days: Int
+    metas: [PlanMeta!]! @hasMany
+}

@@ -1,0 +1,36 @@
+"An invoice record."
+type Invoice {
+    id: ID!
+    title: String
+    invoice_number: String
+    currency: String
+    status: String
+    payment_status: String
+    amount_paid: Float
+    balance_due: Float
+    total: Float
+    date: DateTime
+    timeframe: DateTime
+    importance: String
+    notes: String
+    template_id: ID
+    valid_until: DateTime
+    paid_on: DateTime
+    payment_method: String
+    reference: String
+    description: String
+    currency_rate: Float
+    total_pkr: Float
+    created_at: DateTime
+    updated_at: DateTime
+    customer: Customer @belongsTo
+    company: Company @belongsTo
+    creator: User @belongsTo
+    items: [Item!]! @hasMany
+    discounts: [Discount!]! @morphMany
+    taxes: [Tax!]! @morphMany
+    reminders: [Reminder!]! @morphMany
+    links: [Link!]! @morphMany
+    charities: [Charity!]! @hasMany
+    checklistables: [Checklistable!]! @morphMany
+}

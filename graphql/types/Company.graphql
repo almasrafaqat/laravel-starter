@@ -1,0 +1,28 @@
+"A company account."
+type Company {
+  id: ID!
+  name: String!
+  email: String
+  phone: String
+  address: String
+  website: String
+  tax_number: String
+  registration_number: String
+  country: String
+  state: String
+  city: String
+  zip_code: String
+  description: String
+  language: String
+  currency: String
+  is_active: Boolean
+  is_default: Boolean
+
+  # Optional: keep relations/timestamps if you use them
+  users: [User!]! @belongsToMany
+  plans: [Plan!]! @belongsToMany
+  metas: [CompanyMeta!]! @hasMany
+  invoices: [Invoice!]! @hasMany
+  created_at: DateTime
+  updated_at: DateTime
+}

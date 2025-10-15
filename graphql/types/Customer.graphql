@@ -1,0 +1,12 @@
+"A customer record."
+type Customer {
+    id: ID!
+    name: String!
+    email: String
+    company: String
+    phone: String
+    address: String
+    credit_balance: Float
+    cc: String
+    bcc: String
+}

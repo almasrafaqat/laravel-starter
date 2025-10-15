@@ -1,0 +1,9 @@
+"A reminder for an invoice."
+type Reminder {
+    id: ID!
+    remindable_id: ID!
+    remindable_type: String!
+    schedule_date: DateTime
+    timezone: String
+    message: String
+}

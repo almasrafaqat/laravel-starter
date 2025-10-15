@@ -1,0 +1,10 @@
+"A tax applied to an invoice."
+type Tax {
+    id: ID!
+    taxable_id: ID!
+    taxable_type: String!
+    tax_type: String!
+    tax_value: Float!
+    tax_name: String
+    tax_amount: Float
+}

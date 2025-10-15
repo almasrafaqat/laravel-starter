@@ -1,0 +1,10 @@
+"A link associated with an invoice."
+type Link {
+    id: ID!
+    linkable_id: ID!
+    linkable_type: String!
+    link: String!
+    is_active: Boolean!
+    expires_at: DateTime
+    linkable: JSON
+}

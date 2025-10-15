@@ -1,0 +1,10 @@
+type Checklist {
+    id: ID!
+    title: String!
+    slug: String
+    description: String
+    category_id: ID
+    is_active: Boolean
+    order: Int
+    # category: Category @belongsTo
+}

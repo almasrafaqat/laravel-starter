@@ -1,0 +1,17 @@
+"An item in an invoice."
+type Item {
+    id: ID!
+    invoice_id: ID!
+    name: String!
+    description: String
+    quantity: Int!
+    price: Float!
+    total: Float!
+    subtotal: Float
+    is_discounted: Boolean!
+    is_excluded_invoice_discount: Boolean!
+    is_taxed: Boolean!
+    is_excluded_invoice_taxed: Boolean!
+    invoice: Invoice! @belongsTo
+    discounts: [Discount!]! @morphMany
+}

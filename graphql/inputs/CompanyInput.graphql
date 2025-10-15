@@ -1,0 +1,49 @@
+"Input for creating a new company"
+input CreateCompanyInput {
+    name: String!
+    email: String
+    phone: String
+    address: String
+    website: String
+    logo: String
+    tax_number: String
+    registration_number: String
+    country: String
+    state: String
+    city: String
+    zip_code: String
+    description: String
+    language: String
+    currency: String
+    is_active: Boolean
+    is_default: Boolean
+}
+
+"Input for updating an existing company"
+input UpdateCompanyInput {
+    id: ID!
+    name: String
+    email: String
+    phone: String
+    address: String
+    website: String
+    logo: String
+    tax_number: String
+    registration_number: String
+    country: String
+    state: String
+    city: String
+    zip_code: String
+    description: String
+    language: String
+    currency: String
+    is_active: Boolean
+    is_default: Boolean
+}
+
+"Response for company operations"
+type CompanyResponse {
+    success: Boolean!
+    message: String
+    company: Company
+}

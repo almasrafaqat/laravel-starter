@@ -1,0 +1,10 @@
+"A discount applied to an invoice."
+type Discount {
+    id: ID!
+    discountable_id: ID!
+    discountable_type: String!
+    discount_type: String!
+    discount_value: Float!
+    discount_name: String
+    discount_amount: Float
+}
