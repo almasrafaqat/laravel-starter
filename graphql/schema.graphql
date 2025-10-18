@@ -14,6 +14,7 @@
 #import types/Reminder.graphql
 #import types/Link.graphql
 #import types/Charity.graphql
+#import types/CompanyMailSetting.graphql
 #import inputs/InvoiceInput.graphql
 #import inputs/CompanyInput.graphql
 #import queries/Query.graphql

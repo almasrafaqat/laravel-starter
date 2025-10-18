@@ -19,9 +19,13 @@ return new class extends Migration
             $table->string('username')->nullable();
             $table->string('password')->nullable();
             $table->string('encryption')->nullable();
-            $table->string('from_address')->nullable();
+            $table->string('from_email')->nullable();
             $table->string('from_name')->nullable();
             $table->string('default')->default('no');
+            $table->boolean('is_default')->default(false);
+            $table->boolean('is_active')->default(true);
+            $table->unsignedBigInteger('created_by')->nullable();
+            $table->foreign('created_by')->references('id')->on('users')->onDelete('set null');
             $table->timestamps();
         });
     }

@@ -1,0 +1,58 @@
+type CompanyMailSetting {
+  id: ID!
+  company_id: ID!
+  company: Company @belongsTo
+  type: String
+  host: String!
+  port: Int!
+  username: String!
+  password: String!
+  from_name: String!
+  from_email: String!
+  encryption: String
+  default: String
+  is_default: Boolean!
+  is_active: Boolean!
+  created_by: ID
+  updated_by: ID
+  deleted_by: ID
+  created_at: DateTime
+  updated_at: DateTime
+  deleted_at: DateTime
+}
+
+type CompanyMailSettingResponse {
+  success: Boolean!
+  message: String
+  data: CompanyMailSetting
+}
+
+input CreateCompanyMailSettingInput {
+  company_id: ID!
+  type: String
+  host: String!
+  port: Int!
+  username: String!
+  password: String!
+  from_name: String!
+  from_email: String!
+  encryption: String
+  default: String
+  is_default: Boolean
+  is_active: Boolean
+}
+
+input UpdateCompanyMailSettingInput {
+  company_id: ID
+  type: String
+  host: String
+  port: Int
+  username: String
+  password: String
+  from_name: String
+  from_email: String
+  encryption: String
+  default: String
+  is_default: Boolean
+  is_active: Boolean
+}

@@ -11,4 +11,25 @@ type Mutation {
     updateCompany(input: UpdateCompanyInput!): CompanyResponse! @field(resolver: "App\\GraphQL\\Mutations\\CompanyMutation@updateCompany")
     deleteCompany(id: ID!): CompanyResponse! @field(resolver: "App\\GraphQL\\Mutations\\CompanyMutation@deleteCompany")
     setDefaultCompany(id: ID!): CompanyResponse! @field(resolver: "App\\GraphQL\\Mutations\\CompanyMutation@setDefaultCompany")
+    
+    # Company Mail Settings
+    createCompanyMailSetting(input: CreateCompanyMailSettingInput!): CompanyMailSetting
+        @field(resolver: "App\\GraphQL\\Mutations\\CompanyMailSettingMutations@create")
+        @guard
+
+    updateCompanyMailSetting(id: ID!, input: UpdateCompanyMailSettingInput!): CompanyMailSetting
+        @field(resolver: "App\\GraphQL\\Mutations\\CompanyMailSettingMutations@update")
+        @guard
+
+    deleteCompanyMailSetting(id: ID!): Boolean
+        @field(resolver: "App\\GraphQL\\Mutations\\CompanyMailSettingMutations@delete")
+        @guard
+
+    setDefaultCompanyMailSetting(id: ID!): CompanyMailSettingResponse
+        @field(resolver: "App\\GraphQL\\Mutations\\CompanyMailSettingMutations@setDefault")
+        @guard
+
+    toggleActiveCompanyMailSetting(id: ID!, is_active: Boolean!): CompanyMailSettingResponse
+        @field(resolver: "App\\GraphQL\\Mutations\\CompanyMailSettingMutations@toggleActive")
+        @guard
 }

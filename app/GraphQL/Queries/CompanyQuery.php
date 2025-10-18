@@ -24,6 +24,6 @@ class CompanyQuery
             throw new \Nuwave\Lighthouse\Exceptions\AuthenticationException('Unauthenticated.');
         }
         // Return all companies the user belongs to, with their plans and plan metas
-        return $user->companies()->with(['metas', 'plans.metas'])->get();
+        return $user->companies()->with(['metas', 'plans.metas', 'mailSettings'])->get();
     }
 }

@@ -580,7 +580,7 @@ class InvoiceService
         Config::set('mail.mailers.smtp.username', $smtp['username']);
         Config::set('mail.mailers.smtp.password', $smtp['password']);
         Config::set('mail.mailers.smtp.encryption', $smtp['encryption']);
-        Config::set('mail.from.address', $smtp['from_address']);
+        Config::set('mail.from.address', $smtp['from_email']);
         Config::set('mail.from.name', $smtp['from_name']);
 
         // Handle CC and BCC if provided
@@ -693,7 +693,7 @@ class InvoiceService
                 'username'    => $mailSetting->username,
                 'password'    => $mailSetting->password,
                 'encryption'  => $mailSetting->encryption,
-                'from_address' => $mailSetting->from_address,
+                'from_email' => $mailSetting->from_email,
                 'from_name'   => $mailSetting->from_name,
             ];
         }

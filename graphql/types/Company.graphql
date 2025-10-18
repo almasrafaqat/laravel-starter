@@ -23,6 +23,7 @@ type Company {
   plans: [Plan!]! @belongsToMany
   metas: [CompanyMeta!]! @hasMany
   invoices: [Invoice!]! @hasMany
+  mailSettings: [CompanyMailSetting!]! @belongsToMany
   created_at: DateTime
   updated_at: DateTime
 }
