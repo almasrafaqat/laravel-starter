@@ -36,4 +36,9 @@ class MailSetting extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
+    //Scope
+    public function defaultSmtp(){
+        
+    }
 }

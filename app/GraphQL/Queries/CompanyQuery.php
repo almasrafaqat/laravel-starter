@@ -3,12 +3,15 @@
 
 namespace App\GraphQL\Queries;
 
+use App\Models\Company;
 use Illuminate\Support\Facades\Auth;
 
 class CompanyQuery
 {
     public function myCompany($_, array $args)
     {
+        // $company = Company::findOrFail($args['id']);
+
         $user = auth()->user();
         if (!$user) {
             throw new \Nuwave\Lighthouse\Exceptions\AuthenticationException('Unauthenticated.');

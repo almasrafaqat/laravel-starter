@@ -79,5 +79,8 @@ input InvoiceReminderInput {
 
 type SendInvoiceResponse {
     message: String!
+    type: String!
     success: Boolean!
+    title: String!
+    data: JSON
 }

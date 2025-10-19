@@ -6,6 +6,8 @@ use App\Trait\Relations\CompanyRelation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Models\SmtpSetting;
+use Illuminate\Support\Facades\Storage;
+
 class Company extends Model
 {
     use CompanyRelation, SoftDeletes;
@@ -38,6 +40,7 @@ class Company extends Model
         'is_default' => 'boolean',
     ];
 
+
     public function customers()
     {
         return $this->belongsToMany(Customer::class, 'company_customer');
@@ -47,4 +50,24 @@ class Company extends Model
     {
         return $this->belongsToMany(MailSetting::class, 'company_mail_setting');
     }
+
+
+
+    // Used by GraphQL @method(name: "logoUrl")
+    public function logoUrl(): ?string
+    {
+        if (!$this->logo) {
+            return null;
+        }
+
+        // If already an absolute URL, return as-is
+        if (preg_match('#^https?://#i', $this->logo)) {
+            return $this->logo;
+        }
+
+        // Otherwise, generate a public URL from storage path
+        return Storage::disk('public')->url($this->logo);
+    }
+
+  
 }

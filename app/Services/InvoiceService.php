@@ -6,15 +6,18 @@ use App\Mail\InvoiceMail;
 use App\Models\Company;
 use App\Models\Customer;
 use App\Models\Invoice;
+use App\Trait\ApiResponse;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Mail\Message;
+use RuntimeException;
 
 class InvoiceService
 {
+    use ApiResponse;
     public static function paymentStatus()
     {
         return [
@@ -450,6 +453,7 @@ class InvoiceService
                 'address' => $invoiceData->company->address,
                 'website' => $invoiceData->company->website,
                 'logo' => $invoiceData->company->logo,
+                'logoUrl' => $invoiceData->company->logoUrl(),
                 'slogan' => "Best Solutions for Your Business", // $invoiceData->company->slogan,
                 'tax_number' => $invoiceData->company->tax_number,
                 'registration_number' => $invoiceData->company->registration_number,
@@ -569,10 +573,6 @@ class InvoiceService
         $company = Company::find($invoiceData['company']['id'] ?? null);
         $smtp = $this->getCompanyDefaultSmtp($company);
 
-        if (!$smtp) {
-            // Fallback to some default SMTP settings or throw an error
-            throw new \Exception('No SMTP settings found for the company.');
-        }
 
         // Set mail config dynamically
         Config::set('mail.mailers.smtp.host', $smtp['host']);
@@ -594,6 +594,19 @@ class InvoiceService
             'isPdf' => true,
         ])->render();
         $pdf = Pdf::loadHTML($html);
+
+        $pdf->setOptions([
+            'defaultFont' => 'Almarai',
+            'isPhpEnabled' => true,
+            'isHtml5ParserEnabled' => true,
+            'isFontSubsettingEnabled' => true,
+            'isRemoteEnabled' => true,
+            'chroot' => public_path(),
+            'fontDir' => public_path('fonts'),
+            'fontCache' => storage_path('app/dompdf/fonts'),
+            'tempDir' => storage_path('app/dompdf/temp'),
+            'logOutputFile' => storage_path('logs/dompdf.htm'),
+        ]);
 
         $footerData = $invoiceData['company']['footerData'] ?? [];
         // return $footerData;
@@ -678,27 +691,71 @@ class InvoiceService
 
     public function getCompanyDefaultSmtp($company)
     {
+        if (!$company) {
+            throw new RuntimeException('Company not found for this invoice.');
+        }
+
         // Ensure mailSettings relation is loaded
         if ($company && (!$company->relationLoaded('mailSettings'))) {
             $company->load('mailSettings');
         }
 
         // Get the first/default mail setting
-        $mailSetting = $company->mailSettings->first();
+        // $mailSetting = $company->mailSettings->first();
+        // Prefer default, then active, then newest
+        // $mailSetting = $company->mailSettings()
+        //     ->where('is_default', true)
+        //     ->orderByDesc('id')
+        //     ->first()
+        //     ?? $company->mailSettings()
+        //     ->where('is_active', true)
+        //     ->orderByDesc('id')
+        //     ->first()
+        //     ?? $company->mailSettings()->orderByDesc('id')->first();
 
-        if ($mailSetting) {
-            return [
-                'host'        => $mailSetting->host,
-                'port'        => $mailSetting->port,
-                'username'    => $mailSetting->username,
-                'password'    => $mailSetting->password,
-                'encryption'  => $mailSetting->encryption,
-                'from_email' => $mailSetting->from_email,
-                'from_name'   => $mailSetting->from_name,
-            ];
+        $mailSetting = $company->mailSettings()
+            ->where('is_default', true)
+            ->where('is_active', true)
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$mailSetting) {
+            throw new RuntimeException('No SMTP settings found for the company.');
         }
 
-        return null;
+        $smtp = [
+            'host'       => $mailSetting->host,
+            'port'       => $mailSetting->port,
+            'username'   => $mailSetting->username,
+            'password'   => $mailSetting->password,
+            'encryption' => $mailSetting->encryption ?: 'tls',
+            'from_email' => $mailSetting->from_email,
+            'from_name'  => $mailSetting->from_name ?: ($company->name ?? 'No-Reply'),
+        ];
+
+        // Basic validation for friendlier errors
+        foreach (['host', 'port', 'username', 'password', 'from_email'] as $key) {
+            if (empty($smtp[$key])) {
+                throw new RuntimeException("SMTP setting '{$key}' is missing. Please update company mail settings.");
+            }
+        }
+
+        return $smtp;
+
+
+        // if ($mailSetting) {
+        //     return [
+        //         'host'        => $mailSetting->host,
+        //         'port'        => $mailSetting->port,
+        //         'username'    => $mailSetting->username,
+        //         'password'    => $mailSetting->password,
+        //         'encryption'  => $mailSetting->encryption,
+        //         'from_email' => $mailSetting->from_email,
+        //         'from_name'   => $mailSetting->from_name,
+        //     ];
+        // }
+
+        // return null;
     }
 
 

@@ -5,7 +5,6 @@ input CreateCompanyInput {
     phone: String
     address: String
     website: String
-    logo: String
     tax_number: String
     registration_number: String
     country: String

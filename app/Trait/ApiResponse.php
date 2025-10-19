@@ -59,4 +59,43 @@ trait ApiResponse
     {
         return $this->errorResponse($message, 403, $title);
     }
+
+
+
+
+     // GraphQL-safe helpers (plain arrays, always include message + type)
+
+    protected function gqlSuccess(string $title, string $message, ?array $data = null): array
+    {
+        return ['success' => true, 'type' => 'success', 'title' => $title, 'message' => $message, 'data' => $data];
+    }
+
+    protected function gqlInfo(string $title, string $message, ?array $data = null): array
+    {
+        return ['success' => true, 'type' => 'info', 'title' => $title, 'message' => $message, 'data' => $data];
+    }
+
+    protected function gqlWarning(string $title, string $message, ?array $data = null): array
+    {
+        return ['success' => false, 'type' => 'warning', 'title' => $title, 'message' => $message, 'data' => $data];
+    }
+
+    protected function gqlNotFound(string $title, string $message, ?array $data = null): array
+    {
+        return ['success' => false, 'type' => 'not_found', 'title' => $title, 'message' => $message, 'data' => $data];
+    }
+
+    protected function gqlError(string $title, string $message, ?array $data = null): array
+    {
+        return ['success' => false, 'type' => 'error', 'title' => $title, 'message' => $message, 'data' => $data];
+    }
+
+
+
+
+
+
+
+
+
 }
